@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.capsulatedev/capsulate",
   "description": "Real Linux and Windows desktop VMs for AI agents: exec, files, computer-use and snapshots via MCP.",
   "status": "active",
