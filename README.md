@@ -49,11 +49,12 @@ Machines are metered per second. The beta is free; the published rates are on th
 
 ```bash
 npm ci
+npm run build:sdk    # the CLI, MCP server and tool packs typecheck against the built SDK types
 npm run typecheck
 npm run build
 ```
 
-The workspace builds the SDK first, then the tool packs, the CLI and the MCP server.
+`npm run build` builds the SDK first, then the tool packs, the CLI and the MCP server.
 
 ## Security
 
