@@ -1,0 +1,40 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.json",
+  "name": "io.github.capsulatedev/capsulate",
+  "description": "Launch and drive isolated cloud sandboxes (capsules) — exec, run code, files, computer-use, snapshots — from any MCP client.",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/capsulatedev/capsulate",
+    "source": "github",
+    "subfolder": "apps/mcp"
+  },
+  "version": "0.2.0",
+  "websiteUrl": "https://capsulate.dev",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@capsulate/mcp",
+      "version": "0.2.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "CAPSULATE_API_KEY",
+          "description": "A cap_live_ API key from the dashboard (Settings → API & Keys).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "CAPSULATE_BASE_URL",
+          "description": "API base URL. Defaults to https://api.capsulate.dev.",
+          "isRequired": false
+        },
+        {
+          "name": "CAPSULATE_TEAM_ID",
+          "description": "Team to bill. Defaults to the API key's team.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

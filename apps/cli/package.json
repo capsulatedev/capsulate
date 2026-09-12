@@ -1,0 +1,46 @@
+{
+  "name": "@capsulate/cli",
+  "version": "0.2.0",
+  "description": "The Capsulate CLI \u2014 launch and drive cloud sandboxes (capsules) from your terminal. Full parity with the dashboard.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cap": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/capsulatedev/capsulate.git",
+    "directory": "apps/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@capsulate/sdk": "^0.2.0",
+    "commander": "^12.1.0"
+  },
+  "keywords": [
+    "capsulate",
+    "cli",
+    "sandbox",
+    "agent",
+    "vm"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://capsulate.dev",
+  "bugs": {
+    "url": "https://github.com/capsulatedev/capsulate/issues"
+  }
+}

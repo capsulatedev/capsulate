@@ -1,0 +1,31 @@
+{
+  "name": "capsulate",
+  "private": true,
+  "version": "0.2.0",
+  "description": "The Capsulate doorway: the TypeScript SDK, the cap CLI, the MCP server and the agent tool packs for Capsulate, real Linux and Windows desktop VMs for AI agents.",
+  "workspaces": [
+    "packages/sdk",
+    "packages/ai-tools",
+    "apps/cli",
+    "apps/mcp"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @capsulate/sdk && npm run build --workspace @capsulate/ai-tools && npm run build --workspace @capsulate/cli && npm run build --workspace @capsulate/mcp",
+    "build:sdk": "npm run build --workspace @capsulate/sdk",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/capsulatedev/capsulate.git"
+  },
+  "homepage": "https://capsulate.dev"
+}

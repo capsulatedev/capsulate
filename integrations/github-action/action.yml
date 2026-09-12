@@ -1,0 +1,119 @@
+# Capsulate GitHub Action (Phase 10b, §12 item 4).
+# Runs a command inside a fresh, isolated Capsulate capsule and (optionally) posts the
+# result back to the PR. Composite action — no build/bundling; uses the public API via curl.
+#
+# Usage:
+#   - uses: capsulatedev/run-action@v1
+#     with:
+#       api-key: ${{ secrets.CAPSULATE_API_KEY }}
+#       template: ubuntu-22.04-headless
+#       run: |
+#         git clone "$REPO_URL" repo && cd repo && git checkout "$REPO_SHA"
+#         npm ci && npm test
+name: "Run in Capsulate"
+description: "Run a command inside an isolated, ephemeral Capsulate cloud sandbox and report the result on the PR."
+branding:
+  icon: "box"
+  color: "purple"
+
+inputs:
+  api-key:
+    description: "Capsulate API key (cap_live_…). Store as a repo secret."
+    required: true
+  run:
+    description: "Shell command(s) to run inside the capsule. REPO_URL and REPO_SHA env vars are available."
+    required: true
+  template:
+    description: "Template / OS id to launch."
+    required: false
+    default: "ubuntu-22.04-headless"
+  size:
+    description: "Resource size."
+    required: false
+    default: "2c4g"
+  base-url:
+    description: "Capsulate API base URL."
+    required: false
+    default: "https://api.capsulate.dev"
+  team-id:
+    description: "Team id (optional; resolved from the API key when omitted)."
+    required: false
+    default: ""
+  comment:
+    description: "Post the result as a PR comment (needs github-token)."
+    required: false
+    default: "true"
+  github-token:
+    description: "Token for posting the PR comment."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  exit-code:
+    description: "Exit code of the command run in the capsule."
+    value: ${{ steps.run.outputs.exit-code }}
+  session-id:
+    description: "The capsule session id that ran the command."
+    value: ${{ steps.run.outputs.session-id }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: run
+      shell: bash
+      env:
+        CAP_API: ${{ inputs.base-url }}/api/v1
+        CAP_KEY: ${{ inputs.api-key }}
+        CAP_TEMPLATE: ${{ inputs.template }}
+        CAP_SIZE: ${{ inputs.size }}
+        CAP_TEAM: ${{ inputs.team-id }}
+        CAP_RUN: ${{ inputs.run }}
+        REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+        REPO_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        set -euo pipefail
+        auth=(-H "Authorization: Bearer $CAP_KEY")
+        json=(-H "Content-Type: application/json")
+
+        # Resolve team id from the key if not provided.
+        if [ -z "$CAP_TEAM" ]; then
+          CAP_TEAM=$(curl -fsS "${auth[@]}" "$CAP_API/teams" | jq -r '.[0].id // empty')
+        fi
+        if [ -z "$CAP_TEAM" ]; then echo "::error::Could not resolve a team for this API key."; exit 1; fi
+
+        echo "::group::Launch capsule ($CAP_TEMPLATE / $CAP_SIZE)"
+        # User-Agent tags the launch so the BFF attributes it to origin "github".
+        sid=$(curl -fsS "${auth[@]}" "${json[@]}" -H "User-Agent: capsulate-github-action" "$CAP_API/sessions" \
+          -d "{\"templateId\":\"$CAP_TEMPLATE\",\"size\":\"$CAP_SIZE\",\"teamId\":\"$CAP_TEAM\"}" | jq -r '.sessionId')
+        if [ -z "$sid" ] || [ "$sid" = "null" ]; then echo "::error::Launch failed."; exit 1; fi
+        echo "session-id=$sid" >> "$GITHUB_OUTPUT"
+        echo "Launched $sid"
+        echo "::endgroup::"
+
+        cleanup() { curl -fsS -X DELETE "${auth[@]}" "$CAP_API/sessions/$sid" >/dev/null 2>&1 || true; }
+        trap cleanup EXIT
+
+        echo "::group::Run command in capsule"
+        # Pass the script + repo env into the capsule; capture stdout/stderr/exit.
+        script="export REPO_URL='$REPO_URL' REPO_SHA='$REPO_SHA'; $CAP_RUN"
+        payload=$(jq -n --arg s "$script" '{cmd:["/bin/sh","-lc",$s],timeoutSec:1800}')
+        resp=$(curl -fsS "${auth[@]}" "${json[@]}" "$CAP_API/sessions/$sid/exec" -d "$payload")
+        code=$(echo "$resp" | jq -r '.exitCode // 1')
+        echo "$resp" | jq -r '.stdout // ""'
+        echo "$resp" | jq -r '.stderr // ""' >&2
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "::endgroup::"
+
+        if [ "${{ inputs.comment }}" = "true" ] && [ -n "${{ github.event.pull_request.number || '' }}" ]; then
+          out=$(echo "$resp" | jq -r '.stdout // ""' | tail -c 3000)
+          status=$([ "$code" = "0" ] && echo "✅ passed" || echo "❌ failed (exit $code)")
+          body=$(jq -n --arg s "$status" --arg o "$out" --arg t "$CAP_TEMPLATE" \
+            '{body: ("### 🧪 Ran in Capsulate — \($s)\n\nTemplate: `\($t)`\n\n<details><summary>Output</summary>\n\n```\n\($o)\n```\n</details>\n\n_Isolated ephemeral capsule, destroyed after the run._")}')
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ inputs.github-token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            -d "$body" >/dev/null || echo "::warning::Could not post PR comment."
+        fi
+
+        if [ "$code" != "0" ]; then exit "$code"; fi

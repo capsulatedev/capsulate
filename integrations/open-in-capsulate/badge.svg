@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="196" height="36" role="img" aria-label="Open in Capsulate">
+  <title>Open in Capsulate</title>
+  <defs>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+    <clipPath id="r"><rect width="196" height="36" rx="6"/></clipPath>
+  </defs>
+  <g clip-path="url(#r)" font-family="Verdana,Segoe UI,Helvetica,Arial,sans-serif" font-size="13">
+    <rect width="74" height="36" fill="#1f2937"/>
+    <rect x="74" width="122" height="36" fill="url(#cap)"/>
+    <!-- play glyph -->
+    <path d="M20 12 L20 24 L30 18 Z" fill="#a78bfa"/>
+    <text x="44" y="23" fill="#e5e7eb">Open in</text>
+    <text x="86" y="23" fill="#ffffff" font-weight="bold">Capsulate</text>
+  </g>
+</svg>

@@ -1,0 +1,54 @@
+{
+  "name": "@capsulate/ai-tools",
+  "version": "0.2.0",
+  "description": "Capsulate tools for AI agent frameworks \u2014 drop-in sandbox tools (launch / run code / files / computer-use) for the Vercel AI SDK, LangChain, LlamaIndex, and CrewAI.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/capsulatedev/capsulate.git",
+    "directory": "packages/ai-tools"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@capsulate/sdk": "^0.2.0",
+    "zod": "^3.25.0"
+  },
+  "keywords": [
+    "capsulate",
+    "ai",
+    "agent",
+    "langchain",
+    "vercel-ai-sdk",
+    "llamaindex",
+    "crewai",
+    "tools",
+    "sandbox"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://capsulate.dev",
+  "bugs": {
+    "url": "https://github.com/capsulatedev/capsulate/issues"
+  }
+}

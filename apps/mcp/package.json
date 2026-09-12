@@ -1,0 +1,49 @@
+{
+  "name": "@capsulate/mcp",
+  "version": "0.2.0",
+  "description": "Capsulate MCP server \u2014 give Claude, Cursor, and any MCP client the ability to launch and drive cloud sandboxes (capsules).",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "capsulate-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/capsulatedev/capsulate.git",
+    "directory": "apps/mcp"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@capsulate/sdk": "^0.2.0",
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "zod": "^3.25.0"
+  },
+  "keywords": [
+    "capsulate",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "sandbox",
+    "agent"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://capsulate.dev",
+  "bugs": {
+    "url": "https://github.com/capsulatedev/capsulate/issues"
+  },
+  "mcpName": "io.github.capsulatedev/capsulate"
+}

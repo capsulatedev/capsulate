@@ -1,0 +1,25 @@
+# Example: run a pull request's test suite inside an isolated Capsulate capsule and
+# comment the result on the PR. Copy to .github/workflows/ in your repo.
+name: PR test in Capsulate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  capsulate:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Run tests in an ephemeral capsule
+        uses: capsulatedev/run-action@v1
+        with:
+          api-key: ${{ secrets.CAPSULATE_API_KEY }}
+          template: ubuntu-22.04-headless
+          size: 2c4g
+          run: |
+            git clone "$REPO_URL" repo && cd repo && git checkout "$REPO_SHA"
+            if   [ -f package.json ];      then npm ci && npm test;
+            elif [ -f requirements.txt ];  then pip install -r requirements.txt && pytest -q;
+            elif [ -f go.mod ];            then go test ./...;
+            else echo "No recognized project manifest — nothing to test."; fi

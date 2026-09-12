@@ -1,0 +1,49 @@
+{
+  "name": "@capsulate/sdk",
+  "version": "0.2.0",
+  "description": "Official Capsulate SDK \u2014 launch and drive isolated cloud sandboxes (capsules) from JavaScript/TypeScript. Powers the cap CLI, the MCP server, and your own agents.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/capsulatedev/capsulate.git",
+    "directory": "packages/sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "capsulate",
+    "sandbox",
+    "agent",
+    "ai",
+    "vm",
+    "code-execution",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://capsulate.dev",
+  "bugs": {
+    "url": "https://github.com/capsulatedev/capsulate/issues"
+  }
+}

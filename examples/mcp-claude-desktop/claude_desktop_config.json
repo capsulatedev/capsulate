@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "capsulate": {
+      "command": "npx",
+      "args": ["-y", "@capsulate/mcp"],
+      "env": {
+        "CAPSULATE_API_KEY": "cap_live_REPLACE_ME"
+      }
+    }
+  }
+}
