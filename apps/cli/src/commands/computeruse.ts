@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import { writeFileSync } from "node:fs";
+import type { ElementSelector, UINode, UITreeResult } from "@capsulate/sdk";
 import { withClient } from "./_shared.js";
-import { result, success, info, out, isJsonMode } from "../output.js";
+import { result, success, info, out, isJsonMode, table, trunc, fmtBytes } from "../output.js";
 
 // Shared --shot flags: capture a screenshot after an input verb (act→observe in one call).
 type ShotOpts = { shot?: boolean; shotDelay?: number; shotOut?: string };
@@ -129,6 +130,284 @@ export function registerComputerUse(program: Command): void {
       emitShot(r, local);
     }),
   );
+
+  // ── deep computer-use (Phase CU): structured introspection + rich primitives ──
+
+  program
+    .command("ui-tree <id>")
+    .description("Dump the accessibility tree of a desktop capsule (roles, names, click points)")
+    .option("-d, --depth <n>", "Maximum tree depth", (v) => parseInt(v, 10))
+    .option("--window <title>", "Only the window whose title contains this text")
+    .option("--all", "Include every node, not just the interesting (interactive/labelled) ones")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<{ depth?: number; window?: string; all?: boolean }>();
+        const r = await client.capsules.uiTree(id, {
+          maxDepth: local.depth,
+          window: local.window,
+          interesting: !local.all,
+        });
+        result(r, (d: UITreeResult) => renderTree(d));
+      }),
+    );
+
+  program
+    .command("find <id>")
+    .description("Find on-screen elements by role / name / text; each match has a click point (cx, cy)")
+    .option("--role <role>", "Accessible role, e.g. button")
+    .option("--name <name>", "Accessible name (substring unless --exact)")
+    .option("--text <text>", "Match the name OR the value text")
+    .option("--exact", "Require an exact match instead of a substring")
+    .option("--state <state>", "Require a state, e.g. enabled | visible | focused")
+    .option("--limit <n>", "Maximum number of matches", (v) => parseInt(v, 10))
+    .option("--window <title>", "Search only the window whose title contains this text")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<SelectorOpts & { limit?: number; window?: string }>();
+        const r = await client.capsules.findElement(id, selectorFrom(local), {
+          limit: local.limit,
+          window: local.window,
+        });
+        result(r, (d: any) =>
+          !d.matches?.length
+            ? "(no matches)"
+            : table(
+                d.matches.map((m: any) => ({
+                  role: m.role,
+                  name: trunc(m.name, 40),
+                  cx: m.cx,
+                  cy: m.cy,
+                  size: `${m.w}x${m.h}`,
+                  states: (m.states ?? []).join(","),
+                })),
+                ["role", "name", "cx", "cy", "size", "states"],
+              ),
+        );
+      }),
+    );
+
+  program
+    .command("wait <id>")
+    .description("Wait until an element appears on screen (exit 1 if it does not within --timeout)")
+    .option("--name <name>", "Accessible name (substring unless --exact)")
+    .option("--role <role>", "Accessible role, e.g. dialog")
+    .option("--text <text>", "Match the name OR the value text")
+    .option("--exact", "Require an exact match instead of a substring")
+    .option("--state <state>", "Require a state, e.g. enabled | visible | focused")
+    .option("--timeout <ms>", "Give up after this many milliseconds", (v) => parseInt(v, 10))
+    .option("--window <title>", "Search only the window whose title contains this text")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<SelectorOpts & { timeout?: number; window?: string }>();
+        const r = await client.capsules.waitElement(id, selectorFrom(local), {
+          timeoutMs: local.timeout,
+          window: local.window,
+        });
+        if (!r.found) {
+          if (isJsonMode()) out(r);
+          else info(`Not found after ${r.waitedMs ?? "?"}ms: ${describeSelector(local)}`);
+          process.exitCode = 1;
+          return;
+        }
+        result(r, (d: any) => {
+          const e = d.element ?? {};
+          return `✓ found ${e.role ?? "element"}${e.name ? ` "${e.name}"` : ""} at (${e.cx},${e.cy}) after ${d.waitedMs ?? "?"}ms`;
+        });
+      }),
+    );
+
+  const clip = program.command("clipboard").description("Read or write the desktop clipboard");
+  clip
+    .command("get <id>")
+    .description("Print the clipboard text")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const r = await client.capsules.clipboardGet(id);
+        result(r, (d: any) => d.text ?? "");
+      }),
+    );
+  clip
+    .command("set <id> <text>")
+    .description("Put text on the clipboard")
+    .action((id: string, text: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const r = await client.capsules.clipboardSet(id, text);
+        result(r, () => `✓ clipboard set (${text.length} chars)`);
+      }),
+    );
+
+  program
+    .command("windows <id>")
+    .description("List top-level windows (id, title, bounds, active)")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const r = await client.capsules.windowList(id);
+        result(r, (d: any) =>
+          table(
+            (d.windows ?? []).map((w: any) => ({
+              id: w.id,
+              title: trunc(w.title, 60),
+              active: w.active ? "*" : "",
+              bounds: `${w.x},${w.y} ${w.w}x${w.h}`,
+            })),
+            ["id", "title", "active", "bounds"],
+          ),
+        );
+      }),
+    );
+
+  program
+    .command("focus <id>")
+    .description("Raise and focus a window by title or id")
+    .option("--title <title>", "Window title (substring)")
+    .option("--id <windowId>", "Window id from `cap windows`")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<{ title?: string; id?: string }>();
+        if (!local.title && !local.id) throw new Error("Give --title <text> or --id <windowId>.");
+        const r = await client.capsules.windowFocus(id, { id: local.id, title: local.title });
+        result(r, () => `✓ focused ${local.title ? `"${local.title}"` : local.id}`);
+      }),
+    );
+
+  program
+    .command("ocr <id>")
+    .description("Recognize text on screen (for text not exposed in the accessibility tree)")
+    .option("--region <x,y,w,h>", "Only this rectangle, in pixels")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<{ region?: string }>();
+        const r = await client.capsules.ocr(id, parseRegion(local.region));
+        result(r, (d: any) => d.text ?? "");
+      }),
+    );
+
+  program
+    .command("trace <id>")
+    .description("Show the structured action trace (every interaction this run, in order)")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const r = await client.capsules.trace(id);
+        result(r, (d: any) =>
+          !d.events?.length
+            ? "(no events)"
+            : table(
+                d.events.map((e: any) => ({
+                  at: e.at,
+                  action: e.action,
+                  detail: trunc(JSON.stringify(e.detail ?? {}), 80),
+                })),
+                ["at", "action", "detail"],
+              ),
+        );
+      }),
+    );
+
+  // ── checkpoint / rollback (Phase CU.3): snapshot-backed safety net for agents ──
+
+  const cp = program.command("checkpoint").description("Checkpoint a capsule's disk so an agent can roll back");
+  cp.command("create <id>", { isDefault: true })
+    .description("Capture a checkpoint (prints its id); `cap checkpoint <id>` is the same")
+    .option("-n, --name <name>", "Checkpoint name")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<{ name?: string }>();
+        const s = await client.capsules.checkpoint(id, { name: local.name });
+        if (isJsonMode()) {
+          out(s);
+          return;
+        }
+        process.stdout.write(`${s.id}\n`);
+        success(`Checkpoint ${s.id}${s.name ? ` "${s.name}"` : ""} captured (${fmtBytes(s.sizeBytes)})`);
+      }),
+    );
+  cp.command("list <id>")
+    .description("List a capsule's checkpoints")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const list = await client.capsules.listCheckpoints(id);
+        result(list, (rows: any[]) =>
+          table(
+            rows.map((s) => ({
+              id: s.id,
+              name: s.name ?? "",
+              size: fmtBytes(s.sizeBytes),
+              created: String(s.createdAt ?? "").slice(0, 19),
+            })),
+            ["id", "name", "size", "created"],
+          ),
+        );
+      }),
+    );
+
+  program
+    .command("rollback <id> <checkpointId>")
+    .description("Restore a checkpoint into a fresh capsule (the current capsule is destroyed unless --keep)")
+    .option("-s, --size <size>", "Size of the restored capsule (default: same as the current one)")
+    .option("--keep", "Keep the current capsule running instead of destroying it")
+    .option("-w, --wait", "Wait until the restored capsule is ACTIVE")
+    .action((id: string, checkpointId: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<{ size?: string; keep?: boolean; wait?: boolean }>();
+        const c = await client.capsules.rollback(id, checkpointId, {
+          size: local.size,
+          destroyCurrent: !local.keep,
+        });
+        if (local.wait) await c.waitUntilActive();
+        result(
+          c.data,
+          (d: any) =>
+            `✓ Rolled back to ${checkpointId}: new capsule ${d.sessionId} (${d.status})` +
+            (local.keep ? "" : `\n  ${id} was destroyed; use ${d.sessionId} from here on`),
+        );
+      }),
+    );
+}
+
+type SelectorOpts = { role?: string; name?: string; text?: string; exact?: boolean; state?: string };
+
+function selectorFrom(o: SelectorOpts): ElementSelector {
+  if (!o.role && !o.name && !o.text) throw new Error("Give at least one of --role, --name or --text.");
+  const sel: ElementSelector = {};
+  if (o.role) sel.role = o.role;
+  if (o.name) sel.name = o.name;
+  if (o.text) sel.text = o.text;
+  if (o.exact) sel.exact = true;
+  if (o.state) sel.state = o.state;
+  return sel;
+}
+
+function describeSelector(o: SelectorOpts): string {
+  return [o.role && `role=${o.role}`, o.name && `name="${o.name}"`, o.text && `text="${o.text}"`, o.state && `state=${o.state}`]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function parseRegion(s?: string): { x?: number; y?: number; w?: number; h?: number } | undefined {
+  if (!s) return undefined;
+  const parts = s.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+    throw new Error(`Expected --region x,y,w,h (four numbers), got "${s}"`);
+  }
+  const [x, y, w, h] = parts as [number, number, number, number];
+  return { x, y, w, h };
+}
+
+function renderTree(d: UITreeResult): string {
+  const lines: string[] = [
+    `backend: ${d.backend}` +
+      (d.nodeCount != null ? `  nodes: ${d.nodeCount}` : "") +
+      (d.truncated ? "  (truncated)" : ""),
+  ];
+  const walk = (n: UINode, depth: number) => {
+    const name = n.name ? ` "${trunc(n.name, 60)}"` : "";
+    const value = n.value ? ` = ${JSON.stringify(trunc(n.value, 40))}` : "";
+    lines.push(`${"  ".repeat(depth)}${n.role}${name}${value}  @(${n.cx},${n.cy})`);
+    for (const c of n.children ?? []) walk(c, depth + 1);
+  };
+  for (const r of d.roots ?? []) walk(r, 0);
+  if (lines.length === 1) lines.push("(empty tree)");
+  return lines.join("\n");
 }
 
 function num(s: string): number {

@@ -89,7 +89,12 @@ export class Http {
       res = await this.doFetch(url, { method, headers, body: bodyInit, signal });
     } catch (err: unknown) {
       clearTimeout(timeout);
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = err instanceof Error ? err.message : String(err);
+      // Node's fetch reports "fetch failed" and hides the reason (ENOTFOUND, ECONNREFUSED,
+      // a TLS error) on err.cause; surface it so users can see why.
+      const cause = (err as { cause?: { code?: string; message?: string } })?.cause;
+      const detail = cause?.code || cause?.message;
+      if (detail && !msg.includes(detail)) msg += ` (${detail})`;
       throw new CapsulateError(`Network error calling ${method} ${path}: ${msg}`, {
         status: 0,
         request: { method, path },

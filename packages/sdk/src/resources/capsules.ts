@@ -27,6 +27,11 @@ import type {
   WindowListResult,
   OCRResult,
   TraceResult,
+  Snapshot,
+  ControlStatus,
+  ControlWaitResult,
+  HandbackResult,
+  ConsoleLink,
 } from "../types.js";
 
 const enc = encodeURIComponent;
@@ -74,13 +79,14 @@ export class Capsules {
   /** List active capsules for a team. */
   async list(teamId?: string): Promise<CapsuleData[]> {
     const tid = await this.ctx.resolveTeamId(teamId);
-    return this.ctx.http.get<CapsuleData[]>(`/teams/${enc(tid)}/sessions/active`);
+    // The API answers `null` (not `[]`) when the team has none.
+    return (await this.ctx.http.get<CapsuleData[] | null>(`/teams/${enc(tid)}/sessions/active`)) ?? [];
   }
 
   /** List a team's capsule history (destroyed capsules included). */
   async history(teamId?: string): Promise<CapsuleData[]> {
     const tid = await this.ctx.resolveTeamId(teamId);
-    return this.ctx.http.get<CapsuleData[]>(`/teams/${enc(tid)}/sessions/history`);
+    return (await this.ctx.http.get<CapsuleData[] | null>(`/teams/${enc(tid)}/sessions/history`)) ?? [];
   }
 
   /** Fetch a single capsule as a handle. */
@@ -210,5 +216,84 @@ export class Capsules {
   }
   trace(sessionId: string): Promise<TraceResult> {
     return I.getTrace(this.ctx.http, sessionId);
+  }
+
+  // ── live computer use (Phase LCU): the shared screen, handoff, narration, console links ──
+
+  /** Who is driving the capsule's shared screen: free, agent (the AI) or human. */
+  control(sessionId: string): Promise<ControlStatus> {
+    return I.getControl(this.ctx.http, sessionId);
+  }
+  /** Take the screen (as the AI by default with an API key; `as: "person"` to hold it for a person). */
+  takeControl(sessionId: string, opts?: { as?: "agent" | "person"; note?: string }): Promise<ControlStatus> {
+    return I.takeControl(this.ctx.http, sessionId, opts);
+  }
+  /** Let go of the screen. The AI can never release a person's hold. */
+  releaseControl(sessionId: string, opts?: { as?: "agent" | "person"; note?: string }): Promise<ControlStatus> {
+    return I.releaseControl(this.ctx.http, sessionId, opts);
+  }
+  /**
+   * Hand the screen to a person with a note, and by default wait (up to `timeoutMs`, 10 min) until they
+   * hand it back. Their note comes back in `note`.
+   */
+  async handoff(
+    sessionId: string,
+    note: string,
+    opts: { wait?: boolean; timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<HandbackResult> {
+    const st = await I.handoff(this.ctx.http, sessionId, note);
+    if (opts.wait === false) return { handedBack: false, control: st };
+    return I.waitForHandback(this.ctx.http, sessionId, opts);
+  }
+  /** Wait until a person hands the screen back (no-op when nobody holds it). */
+  waitForHandback(sessionId: string, opts?: { timeoutMs?: number; signal?: AbortSignal }): Promise<HandbackResult> {
+    return I.waitForHandback(this.ctx.http, sessionId, opts);
+  }
+  /** One long-poll (max 25 s) for the next control change. */
+  waitControl(sessionId: string, opts?: { version?: number; timeoutSec?: number; signal?: AbortSignal }): Promise<ControlWaitResult> {
+    return I.waitControl(this.ctx.http, sessionId, opts);
+  }
+  /** Show one line of narration on every live console of the capsule. */
+  say(sessionId: string, text: string): Promise<void> {
+    return I.say(this.ctx.http, sessionId, text);
+  }
+  /** Mint a console link: a signed, expiring URL that opens the live console without a login. */
+  consoleLink(sessionId: string, opts?: { mode?: "view" | "control"; ttlSec?: number }): Promise<ConsoleLink> {
+    return I.consoleLink(this.ctx.http, sessionId, opts);
+  }
+  /** End every console link of the capsule. */
+  revokeConsoleLinks(sessionId: string): Promise<void> {
+    return I.revokeConsoleLinks(this.ctx.http, sessionId);
+  }
+
+  // ── checkpoint / rollback by id (Phase CU.3 parity with the Capsule handle) ──
+  //
+  // Same HTTP paths as Capsule.checkpoint/listCheckpoints/rollback: a checkpoint IS a
+  // snapshot (POST /sessions/:id/snapshot), and rollback is a clone-from-snapshot launch
+  // (POST /sessions with snapshotId) that by default destroys the current capsule.
+
+  /** Capture a checkpoint (snapshot) of a capsule's current disk state. */
+  checkpoint(sessionId: string, opts: { name?: string } = {}): Promise<Snapshot> {
+    return this.snapshots.create(sessionId, opts.name);
+  }
+
+  /** List a capsule's checkpoints (snapshots). */
+  listCheckpoints(sessionId: string): Promise<Snapshot[]> {
+    return this.snapshots.list(sessionId);
+  }
+
+  /**
+   * Roll a capsule back to a checkpoint: launches a fresh capsule cloned from the
+   * snapshot (same template/size/team as the current one) and returns its handle. The
+   * current capsule is destroyed unless `destroyCurrent: false`. The restored capsule has
+   * a NEW session id.
+   */
+  async rollback(
+    sessionId: string,
+    checkpointId: string,
+    opts: { size?: string; destroyCurrent?: boolean } = {},
+  ): Promise<Capsule> {
+    const current = await this.get(sessionId);
+    return current.rollback(checkpointId, opts);
   }
 }

@@ -6,16 +6,38 @@
 // Antigravity, etc. — can drive isolated cloud sandboxes. Credentials come from
 // the environment:
 //
-//   CAPSULATE_API_KEY   (required)   a cap_live_ key from the dashboard
-//   CAPSULATE_BASE_URL  (optional)   defaults to https://api.capsulate.dev
-//   CAPSULATE_TEAM_ID   (optional)   defaults to the key's team
+//   CAPSULATE_API_KEY       (required)   a cap_live_ key from the dashboard
+//   CAPSULATE_API_KEY_FILE  (optional)   instead of the key itself: a file holding the key, either the
+//                                        bare key or a CAPSULATE_API_KEY=... line (keeps the key out of
+//                                        MCP config files)
+//   CAPSULATE_BASE_URL      (optional)   defaults to https://api.capsulate.dev
+//   CAPSULATE_TEAM_ID       (optional)   defaults to the key's team
 
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Capsulate, CapsulateError } from "@capsulate/sdk";
+import { registerLiveTools, LIVE_INSTRUCTIONS } from "./tools-live.js";
 
-const apiKey = process.env.CAPSULATE_API_KEY;
+/// keyFromFile reads CAPSULATE_API_KEY_FILE: a bare key, or a dotenv-style CAPSULATE_API_KEY=... line.
+function keyFromFile(file: string | undefined): string | undefined {
+  if (!file) return undefined;
+  try {
+    const raw = readFileSync(file, "utf8");
+    for (const line of raw.split(/\r?\n/)) {
+      const m = line.match(/^\s*CAPSULATE_API_KEY\s*=\s*(.+?)\s*$/);
+      if (m) return m[1].replace(/^["']|["']$/g, "");
+    }
+    const bare = raw.trim();
+    return bare && !/\s/.test(bare) && !bare.includes("=") ? bare : undefined;
+  } catch {
+    process.stderr.write(`[capsulate-mcp] could not read CAPSULATE_API_KEY_FILE (${file}).\n`);
+    return undefined;
+  }
+}
+
+const apiKey = process.env.CAPSULATE_API_KEY || keyFromFile(process.env.CAPSULATE_API_KEY_FILE);
 if (!apiKey) {
   process.stderr.write(
     "[capsulate-mcp] CAPSULATE_API_KEY is not set. Create a key in the dashboard (Settings → API & Keys) and set it in your MCP client config.\n",
@@ -27,10 +49,10 @@ const cap = new Capsulate({
   apiKey,
   baseUrl: process.env.CAPSULATE_BASE_URL,
   teamId: process.env.CAPSULATE_TEAM_ID,
-  userAgent: "capsulate-mcp/0.2.0",
+  userAgent: "capsulate-mcp/0.3.0",
 });
 
-const server = new McpServer({ name: "capsulate", version: "0.2.0" });
+const server = new McpServer({ name: "capsulate", version: "0.3.0" }, { instructions: LIVE_INSTRUCTIONS });
 
 type TextResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
@@ -40,6 +62,18 @@ function ok(data: unknown): TextResult {
 }
 
 function err(e: unknown): TextResult {
+  // Phase LCU: a person holds the shared screen. Say what to do instead of a bare 409.
+  if (e instanceof CapsulateError && e.isHumanInControl) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "A person holds this capsule's screen right now (they took over, or you handed it to them). Your input was not sent. Call capsulate_wait_for_handback, then retry.",
+        },
+      ],
+      isError: true,
+    };
+  }
   const msg =
     e instanceof CapsulateError
       ? `Capsulate error (${e.status}): ${e.message}`
@@ -336,8 +370,13 @@ server.registerTool(
   "capsulate_key",
   {
     title: "Press keys",
-    description: "Press a key or chord in a desktop capsule, e.g. ['ctrl','c'].",
-    inputSchema: { sessionId: z.string(), keys: z.array(z.string()), ...shotSchema },
+    description:
+      "Press keys in a desktop capsule, in order. Each entry is one key or a '+'-joined chord (xdotool names): ['ctrl+c'] copies, ['ctrl+l', 'Return'] focuses then submits, ['alt+F4'] closes a window. A bare modifier followed by a key is joined into a chord, so ['ctrl','v'] also pastes.",
+    inputSchema: {
+      sessionId: z.string(),
+      keys: z.array(z.string()).describe("Keys or chords, e.g. ['ctrl+s'] or ['Escape']"),
+      ...shotSchema,
+    },
   },
   async (args) => {
     try {
@@ -345,7 +384,7 @@ server.registerTool(
         screenshot: args.screenshot,
         screenshotDelayMs: args.screenshotDelayMs,
       });
-      return withShot(r, `pressed ${args.keys.join("+")}`);
+      return withShot(r, `pressed ${args.keys.join(", then ")}`);
     } catch (e) {
       return err(e);
     }
@@ -395,6 +434,9 @@ server.registerTool(
     }
   },
 );
+
+// ---- live computer use (Phase LCU): deep verbs, console links, control, handoff, narration ----
+registerLiveTools({ server, cap, ok, err, withShot });
 
 async function main() {
   const transport = new StdioServerTransport();

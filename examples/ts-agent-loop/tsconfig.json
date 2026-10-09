@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    // Resolve the Capsulate packages from this repository's build when the example is
+    // checked out inside it (run `npm run build:sdk && npm run build` at the root first).
+    // Outside the repo these paths do not exist and TypeScript falls back to node_modules,
+    // which is what `npm install` gives you.
+    "paths": {
+      "@capsulate/sdk": ["../../packages/sdk/dist/index.d.ts"],
+      "@capsulate/ai-tools": ["../../packages/ai-tools/dist/index.d.ts"]
+    }
+  },
+  "include": ["index.ts"]
+}

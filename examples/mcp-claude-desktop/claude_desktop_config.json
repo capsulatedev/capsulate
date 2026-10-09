@@ -4,7 +4,8 @@
       "command": "npx",
       "args": ["-y", "@capsulate/mcp"],
       "env": {
-        "CAPSULATE_API_KEY": "cap_live_REPLACE_ME"
+        "CAPSULATE_API_KEY": "cap_live_...",
+        "CAPSULATE_BASE_URL": "https://api.capsulate.dev"
       }
     }
   }

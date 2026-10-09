@@ -22,6 +22,10 @@ import type {
   WindowListResult,
   OCRResult,
   TraceResult,
+  ControlStatus,
+  ControlWaitResult,
+  HandbackResult,
+  ConsoleLink,
 } from "./types.js";
 
 const enc = encodeURIComponent;
@@ -195,6 +199,11 @@ export async function typeText(
   return http.post<InputResult>(`/sessions/${enc(sessionId)}/type`, { sessionId, text, ...shotFields(opts) });
 }
 
+/**
+ * Press keys in order. Each entry is one key or a "+"-joined chord (xdotool names): `["ctrl+c"]`,
+ * `["ctrl+l", "Return"]`, `["alt+F4"]`. A bare modifier followed by a key is joined into a chord by the
+ * API, so `["ctrl", "v"]` also pastes.
+ */
 export async function sendKeys(
   http: Http,
   sessionId: string,
@@ -279,4 +288,86 @@ export async function ocr(
 /** The live structured action trace (Phase CU.5) — every interaction this run, in order. */
 export async function getTrace(http: Http, sessionId: string): Promise<TraceResult> {
   return http.get<TraceResult>(`/sessions/${enc(sessionId)}/trace`);
+}
+
+// ---- live computer use (Phase LCU): who drives the shared screen, handoff, narration ----
+
+/** The current "who is driving" state of a desktop capsule's shared screen. */
+export async function getControl(http: Http, sessionId: string): Promise<ControlStatus> {
+  return http.get<ControlStatus>(`/sessions/${enc(sessionId)}/control`);
+}
+
+/**
+ * Take the screen. With an API key the caller is the AI unless `as: "person"`; the AI is refused
+ * (409 human_in_control) while a person holds the screen.
+ */
+export async function takeControl(
+  http: Http,
+  sessionId: string,
+  opts: { as?: "agent" | "person"; note?: string } = {},
+): Promise<ControlStatus> {
+  return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/take`, { as: opts.as, note: opts.note });
+}
+
+/** Let go of the screen. The AI can only release its own hold, never a person's. */
+export async function releaseControl(
+  http: Http,
+  sessionId: string,
+  opts: { as?: "agent" | "person"; note?: string } = {},
+): Promise<ControlStatus> {
+  return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/release`, { as: opts.as, note: opts.note });
+}
+
+/** Hand the screen to a person with a note saying what you need ("Please sign in, then hand it back"). */
+export async function handoff(http: Http, sessionId: string, note: string): Promise<ControlStatus> {
+  return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/handoff`, { note });
+}
+
+/** One long-poll (max 25 s): returns when the control version moves past `version`, or on timeout. */
+export async function waitControl(
+  http: Http,
+  sessionId: string,
+  opts: { version?: number; timeoutSec?: number; signal?: AbortSignal } = {},
+): Promise<ControlWaitResult> {
+  return http.get<ControlWaitResult>(`/sessions/${enc(sessionId)}/control/wait`, {
+    query: { version: opts.version, timeout: opts.timeoutSec },
+    signal: opts.signal,
+  });
+}
+
+/** Wait until a person hands the screen back (state no longer human), up to `timeoutMs` (default 10 min). */
+export async function waitForHandback(
+  http: Http,
+  sessionId: string,
+  opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<HandbackResult> {
+  const deadline = Date.now() + (opts.timeoutMs ?? 10 * 60_000);
+  let st = await getControl(http, sessionId);
+  while (st.state === "human") {
+    const left = deadline - Date.now();
+    if (left <= 0 || opts.signal?.aborted) return { handedBack: false, control: st };
+    const timeoutSec = Math.max(1, Math.min(25, Math.ceil(left / 1000)));
+    const r = await waitControl(http, sessionId, { version: st.version, timeoutSec, signal: opts.signal });
+    st = r.control;
+  }
+  return { handedBack: true, control: st, note: st.note || undefined };
+}
+
+/** One line of narration, shown live on every console watching the capsule. */
+export async function say(http: Http, sessionId: string, text: string): Promise<void> {
+  await http.post(`/sessions/${enc(sessionId)}/say`, { text });
+}
+
+/** Mint a console link: a signed, expiring URL that opens the live console without a login. */
+export async function consoleLink(
+  http: Http,
+  sessionId: string,
+  opts: { mode?: "view" | "control"; ttlSec?: number } = {},
+): Promise<ConsoleLink> {
+  return http.post<ConsoleLink>(`/sessions/${enc(sessionId)}/console-link`, { mode: opts.mode, ttlSec: opts.ttlSec });
+}
+
+/** End every console link of the capsule and close the consoles opened with them. */
+export async function revokeConsoleLinks(http: Http, sessionId: string): Promise<void> {
+  await http.post(`/sessions/${enc(sessionId)}/console-links/revoke`, {});
 }

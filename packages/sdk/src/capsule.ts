@@ -40,6 +40,9 @@ import type {
   TraceResult,
   RunReport,
   RunArtifact,
+  ControlStatus,
+  HandbackResult,
+  ConsoleLink,
 } from "./types.js";
 
 export class Capsule {
@@ -154,6 +157,46 @@ export class Capsule {
   }
   ocr(region?: { x?: number; y?: number; w?: number; h?: number }): Promise<OCRResult> {
     return I.ocr(this.ctx.http, this.id, region);
+  }
+
+  // ---- live computer use (Phase LCU): the shared screen, handoff, narration, console links ----
+
+  /** Who is driving this capsule's shared screen: free, agent (the AI) or human. */
+  control(): Promise<ControlStatus> {
+    return I.getControl(this.ctx.http, this.id);
+  }
+  /** Take the screen (as the AI by default with an API key; `as: "person"` to hold it for a person). */
+  takeControl(opts?: { as?: "agent" | "person"; note?: string }): Promise<ControlStatus> {
+    return I.takeControl(this.ctx.http, this.id, opts);
+  }
+  /** Let go of the screen. The AI can never release a person's hold. */
+  releaseControl(opts?: { as?: "agent" | "person"; note?: string }): Promise<ControlStatus> {
+    return I.releaseControl(this.ctx.http, this.id, opts);
+  }
+  /**
+   * Hand the screen to a person with a note ("Please sign in, then hand it back") and by default wait
+   * (up to `timeoutMs`, 10 min) until they hand it back. Their note comes back in `note`.
+   */
+  async handoff(note: string, opts: { wait?: boolean; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<HandbackResult> {
+    const st = await I.handoff(this.ctx.http, this.id, note);
+    if (opts.wait === false) return { handedBack: false, control: st };
+    return I.waitForHandback(this.ctx.http, this.id, opts);
+  }
+  /** Wait until a person hands the screen back (no-op when nobody holds it). */
+  waitForHandback(opts?: { timeoutMs?: number; signal?: AbortSignal }): Promise<HandbackResult> {
+    return I.waitForHandback(this.ctx.http, this.id, opts);
+  }
+  /** Show one line of narration on every live console of the capsule. */
+  say(text: string): Promise<void> {
+    return I.say(this.ctx.http, this.id, text);
+  }
+  /** Mint a console link: a signed, expiring URL that opens the live console without a login. */
+  consoleLink(opts?: { mode?: "view" | "control"; ttlSec?: number }): Promise<ConsoleLink> {
+    return I.consoleLink(this.ctx.http, this.id, opts);
+  }
+  /** End every console link of this capsule. */
+  revokeConsoleLinks(): Promise<void> {
+    return I.revokeConsoleLinks(this.ctx.http, this.id);
   }
 
   // ---- composed reliable desktop ops (Phase CU.6: find → act → verify) ----

@@ -31,6 +31,15 @@ export class CapsulateError extends Error {
   get isPaymentRequired(): boolean {
     return this.status === 402;
   }
+
+  /**
+   * Phase LCU: a person holds the capsule's shared screen, so an AI input was refused (409). Wait with
+   * `waitForHandback()` and retry.
+   */
+  get isHumanInControl(): boolean {
+    const b = this.body as { error?: unknown } | undefined;
+    return this.status === 409 && !!b && typeof b === "object" && b.error === "human_in_control";
+  }
 }
 
 /** Thrown when the SDK is used without credentials. */

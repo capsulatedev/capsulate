@@ -1,7 +1,7 @@
 {
   "name": "capsulate",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The Capsulate doorway: the TypeScript SDK, the cap CLI, the MCP server and the agent tool packs for Capsulate, real Linux and Windows desktop VMs for AI agents.",
   "workspaces": [
     "packages/sdk",

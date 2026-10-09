@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { writeFileSync } from "node:fs";
 import { withClient } from "./_shared.js";
-import { result, success, table } from "../output.js";
+import { result, success, table, fmtBytes } from "../output.js";
 
 export function registerExtras(program: Command): void {
   // --- snapshots ---
@@ -185,16 +185,4 @@ export function registerExtras(program: Command): void {
         success(`Removed public port ${publicPort}`);
       }),
     );
-}
-
-function fmtBytes(n?: number): string {
-  if (!n || n <= 0) return "0 B";
-  const u = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < u.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
 }

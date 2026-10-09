@@ -488,3 +488,51 @@ export interface CatalogArtifact {
   versions?: unknown[];
   [key: string]: unknown;
 }
+
+// ---- live computer use (Phase LCU): the shared screen, who drives it, console links ----
+
+/** Who holds a desktop capsule's shared screen. */
+export type ControlState = "free" | "agent" | "human";
+
+/** The "who is driving" state of a desktop capsule's shared screen. */
+export interface ControlStatus {
+  sessionId: string;
+  /** free: nobody holds it. agent: the AI is acting (each input renews a 45 s lease). human: a person holds it. */
+  state: ControlState;
+  /** Who made the latest change: agent | owner | link | system. */
+  by?: string;
+  /** The latest handoff message: what the AI asked a person to do, or what the person said handing back. */
+  note?: string;
+  /** True while the AI has handed the screen to a person and waits to get it back. */
+  handoff?: boolean;
+  since: string;
+  /** When the AI's hold ends without further input (agent state only). */
+  leaseUntil?: string;
+  /** Increases on every change. */
+  version: number;
+}
+
+/** Result of one long-poll on the control state. */
+export interface ControlWaitResult {
+  /** False when the wait timed out with no change. */
+  changed: boolean;
+  control: ControlStatus;
+}
+
+/** Result of waiting for a person to hand the screen back. */
+export interface HandbackResult {
+  /** True when the screen came back (state is no longer human). False on timeout. */
+  handedBack: boolean;
+  control: ControlStatus;
+  /** What the person said when handing back, if anything. */
+  note?: string;
+}
+
+/** A console link: a signed, expiring URL that opens the live console without a login. */
+export interface ConsoleLink {
+  url: string;
+  token: string;
+  /** view: watch only. control: watch, take the screen and hand it back. */
+  mode: "view" | "control";
+  expiresAt: string;
+}

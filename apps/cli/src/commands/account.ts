@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withClient } from "./_shared.js";
 import { result, success, table, out } from "../output.js";
+import { openUrl } from "../browser.js";
 
 const DOCS_URL = process.env.CAPSULATE_DOCS_URL || "https://docs.capsulate.dev";
 
@@ -88,20 +89,8 @@ export function registerAccount(program: Command): void {
   program
     .command("docs")
     .description("Open the Capsulate documentation in your browser")
-    .action(async () => {
+    .action(() => {
       success(`Documentation: ${DOCS_URL}`);
-      await openUrl(DOCS_URL);
+      openUrl(DOCS_URL);
     });
-}
-
-async function openUrl(url: string): Promise<void> {
-  try {
-    const { spawn } = await import("node:child_process");
-    const platform = process.platform;
-    const cmd = platform === "win32" ? "cmd" : platform === "darwin" ? "open" : "xdg-open";
-    const args = platform === "win32" ? ["/c", "start", "", url] : [url];
-    spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
-  } catch {
-    /* best-effort */
-  }
 }

@@ -14,6 +14,7 @@ import { Command } from "commander";
 import { cliVersion } from "./client.js";
 import { loadConfig, DEFAULT_BASE_URL } from "./config.js";
 import { maybeNotifyUpdate } from "./versionNotice.js";
+import { ExitError } from "./output.js";
 import { registerAuth } from "./commands/auth.js";
 import { registerCapsules } from "./commands/capsules.js";
 import { registerComputerUse } from "./commands/computeruse.js";
@@ -22,6 +23,7 @@ import { registerVolumes } from "./commands/volumes.js";
 import { registerCatalog } from "./commands/catalog.js";
 import { registerAccount } from "./commands/account.js";
 import { registerDemos } from "./commands/demos.js";
+import { registerLive } from "./commands/live.js"; // Phase LCU — live computer use
 
 const program = new Command();
 
@@ -44,6 +46,7 @@ registerVolumes(program);
 registerCatalog(program);
 registerAccount(program);
 registerDemos(program);
+registerLive(program);
 
 program.addHelpText(
   "after",
@@ -55,6 +58,8 @@ Examples:
   $ cap run sess-abc "print(40+2)" --lang python
   $ cap cp ./app.py sess-abc:/workspace/app.py
   $ cap shot sess-abc -o frame.png
+  $ cap live sess-abc                      # watch the desktop live, take over
+  $ cap handoff sess-abc "Please sign in"  # the AI asks you, waits for Done
   $ cap snapshot create sess-abc -n "before-upgrade"
   $ cap volume create data 10
   $ cap capsule destroy sess-abc
@@ -72,6 +77,9 @@ program
     await maybeNotifyUpdate(baseUrl, !!o.json);
   })
   .catch((err) => {
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+    // ExitError means a command already printed its message and set the exit code.
+    if (!(err instanceof ExitError)) {
+      console.error(err instanceof Error ? err.message : String(err));
+    }
+    if (!process.exitCode) process.exitCode = 1;
   });
