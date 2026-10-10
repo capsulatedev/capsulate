@@ -1,0 +1,19 @@
+{
+  "name": "capsulate-example-desktop-batch-form-fill",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Enter records through a web form in a capsule's own Chrome, then into a desktop app in one runActions call, timing every step.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capsulate/sdk": "^0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

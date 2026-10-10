@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "capsulate": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@capsulate/mcp@0.4"],
+      "env": {
+        "CAPSULATE_API_KEY": "${CAPSULATE_API_KEY}",
+        "CAPSULATE_BASE_URL": "${CAPSULATE_BASE_URL:-https://api.capsulate.dev}"
+      }
+    }
+  }
+}

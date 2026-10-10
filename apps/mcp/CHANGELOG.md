@@ -2,6 +2,10 @@
 
 `@capsulate/mcp`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.4.1 (2026-10-10)
+
+- `capsulate_launch` waits for a long launch the same way (the SDK 0.4.1 asks again with the same key), so a cold Windows desktop no longer fails at the gateway's 100 s.
+
 ## 0.4.0 (2026-10-10)
 
 - The complete toolset, the same on Linux and Windows desktops: `capsulate_element` (set_value, clear, toggle, expand, collapse, invoke, select an option by name, focus, scroll_into_view, without coordinates), `capsulate_window` (minimize, maximize, restore, close, move, resize, focus), `capsulate_open` (a URL, a file or an app by name, waiting for its window), `capsulate_wait_for` (present, absent, enabled, text, window, screen_stable) and `capsulate_screen_info`. An action that could not happen answers "Not done" with its code and the next step to try.

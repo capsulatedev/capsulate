@@ -2,6 +2,11 @@
 
 All four packages share a version.
 
+## 0.4.1 (2026-10-10)
+
+- Launches that wait: the SDK's `capsules.create` sends an `Idempotency-Key` and asks again with it while the capsule is still being created (the API answers `202` with `status: "CREATING"`) or when a gateway or the network drops the request, never after a refusal such as no capacity. A cold-created Windows desktop takes minutes, longer than a gateway keeps a request open; `cap launch`, `capsulate_launch` and the ai-tools launch now wait for it. `idempotencyKey` and `createTimeoutMs` on the create options; `rollback` restores the same way.
+- Examples: `claude-code-live-handoff` (Claude Code drives a live desktop over MCP and hands you the screen) and `desktop-batch-form-fill` (a timed form fill in the capsule's own Chrome, then the editor in one `runActions` call, on Linux or Windows).
+
 ## 0.4.0 (2026-10-10)
 
 - The complete computer-use toolset, the same on Linux and Windows desktops. Act on an element without coordinates: `elementAction` sets a value, clears, toggles, expands or collapses, invokes, selects (an option by name inside a combo box or list), focuses or scrolls it into view, with a `setValue` shortcut. `windowAction` minimizes, maximizes, restores, closes, moves and resizes windows. `open` opens a URL, a file or an app by name and can wait for its window. `waitFor` waits in the capsule for an element to appear, go away, be enabled or show a text, for a window, or for the screen to settle, without holding up other calls. `screenInfo` reads the screen size, the pointer and the active window. Screenshots can be JPEG, scaled or a region (about 42 KiB to 10 KiB for a 1280x800 screen). MCP: `capsulate_element`, `capsulate_window`, `capsulate_open`, `capsulate_wait_for`, `capsulate_screen_info`. CLI: `cap element`, `cap window`, `cap open`, `cap wait-for`, `cap screen`, and `cap shot --format --scale --region`. ai-tools: the same five tools.

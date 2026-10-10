@@ -1,6 +1,6 @@
 {
   "name": "@capsulate/mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Capsulate MCP server \u2014 give Claude, Cursor, and any MCP client the ability to launch and drive cloud sandboxes (capsules).",
   "license": "MIT",
   "type": "module",
@@ -26,7 +26,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@capsulate/sdk": "^0.4.0",
+    "@capsulate/sdk": "^0.4.1",
     "@modelcontextprotocol/sdk": "^1.18.0",
     "zod": "^3.25.0"
   },

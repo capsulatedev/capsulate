@@ -1,6 +1,6 @@
 # Capsulate examples
 
-Five small programs you can copy and run. Each folder has its own README with what it does,
+Seven small programs you can copy and run. Each folder has its own README with what it does,
 how long it takes, and what it costs in credits with the arithmetic written out.
 
 | Example | What it shows | Language |
@@ -8,7 +8,9 @@ how long it takes, and what it costs in credits with the arithmetic written out.
 | [python-requests-hello](./python-requests-hello) | The REST API with nothing but `requests`: launch, wait, exec, destroy | Python |
 | [ts-agent-loop](./ts-agent-loop) | An agent that drives a capsule, using the Vercel AI SDK v5 and `@capsulate/ai-tools` | TypeScript |
 | [mcp-claude-desktop](./mcp-claude-desktop) | Wiring the MCP server into Claude Desktop or Cursor | JSON config |
+| [claude-code-live-handoff](./claude-code-live-handoff) | Claude Code works on a desktop you watch live, narrates each step, and hands you the screen for a choice or a sign in | JSON config and a prompt |
 | [desktop-checkpoint-rollback](./desktop-checkpoint-rollback) | Checkpoint a desktop capsule, break something, roll back, verify | TypeScript |
+| [desktop-batch-form-fill](./desktop-batch-form-fill) | Records through a web form in the capsule's own Chrome, then a desktop app in one `runActions` call, every step timed, on Linux or Windows | TypeScript |
 | [github-action-pr-test](./github-action-pr-test) | Run a pull request's tests inside a capsule from CI | GitHub Actions |
 
 ## Before you start

@@ -2,6 +2,10 @@
 
 `@capsulate/ai-tools`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version again from 0.3.0 (0.2.1 was never published; its changes ship in 0.3.0).
 
+## 0.4.1 (2026-10-10)
+
+- `capsulate_launch` waits for a long launch through the SDK 0.4.1 (the same key until the capsule is ready).
+
 ## 0.4.0 (2026-10-10)
 
 - The complete toolset: `capsulate_element`, `capsulate_window`, `capsulate_open`, `capsulate_wait_for` and `capsulate_screen_info`; an action that could not happen answers `{ ok: false, error, message }`.

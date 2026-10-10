@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    // Resolve @capsulate/sdk from this repository's build when the example is checked out
+    // inside it (run `npm run build:sdk` at the root first). Outside the repo this path does
+    // not exist and TypeScript falls back to node_modules, which is what `npm install` gives.
+    "paths": {
+      "@capsulate/sdk": ["../../packages/sdk/dist/index.d.ts"]
+    }
+  },
+  "include": ["src"]
+}

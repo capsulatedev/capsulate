@@ -4,6 +4,7 @@
 
 import { Browser } from "../browser.js";
 import { runActions, type RunActionsResult, type RunObserve, type RunStep } from "../actions.js";
+import { postLaunch } from "../launch.js";
 import type { ClientContext } from "../internal.js";
 import * as I from "../interaction.js";
 import { Capsule } from "../capsule.js";
@@ -60,7 +61,11 @@ export class Capsules {
     this.snapshots = new Snapshots(ctx.http);
   }
 
-  /** Launch a new capsule. Returns a Capsule handle. */
+  /**
+   * Launch a new capsule. Returns a Capsule handle. The launch carries an Idempotency-Key, so create() asks again
+   * while the capsule is still being created (the API answers 202 "CREATING") or when the network or a gateway
+   * drops the request, and always gets the one capsule this call launched.
+   */
   async create(opts: CreateCapsuleOptions): Promise<Capsule> {
     const teamId = await this.ctx.resolveTeamId(opts.teamId);
     const body: Record<string, unknown> = {
@@ -77,7 +82,7 @@ export class Capsules {
     if (opts.onDestroy) body.onDestroy = opts.onDestroy;
     if (opts.record) body.record = true;
     if (opts.ephemeralPublicKey) body.ephemeralPublicKey = opts.ephemeralPublicKey;
-    const data = await this.ctx.http.post<CapsuleData>(`/sessions`, body);
+    const data = await postLaunch(this.ctx.http, body, { idempotencyKey: opts.idempotencyKey, createTimeoutMs: opts.createTimeoutMs });
     return new Capsule(this.ctx, data);
   }
 
@@ -346,7 +351,7 @@ export class Capsules {
   async rollback(
     sessionId: string,
     checkpointId: string,
-    opts: { size?: string; destroyCurrent?: boolean } = {},
+    opts: { size?: string; destroyCurrent?: boolean; idempotencyKey?: string; createTimeoutMs?: number } = {},
   ): Promise<Capsule> {
     const current = await this.get(sessionId);
     return current.rollback(checkpointId, opts);

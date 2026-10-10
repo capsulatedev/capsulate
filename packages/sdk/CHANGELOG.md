@@ -2,6 +2,13 @@
 
 `@capsulate/sdk`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.4.1 (2026-10-10)
+
+- `capsules.create` (and `launch`) sends an `Idempotency-Key` and asks again with it while the capsule is still being created (the API answers `202` with `status: "CREATING"`) or when a gateway or the network drops the request (502, 504, 520 to 524, no answer). It never asks again after a refusal such as no capacity, so it always gets the one capsule it launched. A cold-created Windows capsule takes minutes, longer than a gateway keeps a request open. `CreateCapsuleOptions.idempotencyKey` picks the key (to resume a launch from another process), `createTimeoutMs` changes the 15 minute limit; after it, the error names the key.
+- `rollback` (on the handle and the `capsules` resource) restores the same way: a restore boots a clone and, on Windows, prepares its desktop, so it sends a key and asks again too (`idempotencyKey`, `createTimeoutMs`).
+- Requests take per-call headers (`RequestOptions.headers`).
+- `Capsule.sharedScreen`: the console shows the live shared screen, now on Windows desktops too (their VM screen, where the console used to be a separate RDP session).
+
 ## 0.4.0 (2026-10-10)
 
 - The complete toolset (LCU M2.6), on the `Capsule` handle and the `capsules` resource, served on Linux and Windows alike: `elementAction(action, selector, { value, window, index })` acts on an element without coordinates (`set_value`, `clear`, `toggle`, `expand`, `collapse`, `invoke`, `select` with an option by name, `focus`, `scroll_into_view`), with the `setValue(selector, value)` shortcut on the handle; `windowAction(action, { id | title }, { x, y, w, h })` (`minimize`, `maximize`, `restore`, `close`, `move`, `resize`, `focus`); `open(target, { kind, waitMs })` opens a URL, a file or an app by name and can wait for its window; `waitFor(condition, ...)` waits in the capsule for `present`, `absent`, `enabled`, `text`, `window` or `screen_stable` without holding up other calls; `screenInfo()`. `screenshot({ format, quality, scale, x, y, w, h })` returns JPEG, a scaled image or a region (a 1280x800 screen goes from about 42 KiB to 10 KiB as JPEG at half scale). `runActions` takes `element`, `window`, `open`, `wait_for` and `screen` steps. `CapsulateError.code` gives the machine code of a refused call (`not_found`, `unsupported`, `human_in_control`).

@@ -43,6 +43,15 @@ export interface CreateCapsuleOptions {
   record?: boolean;
   /** Your own SSH public key (desktop/headless); a password/key is generated otherwise. */
   ephemeralPublicKey?: string;
+  /**
+   * Makes the launch safe to send again: the same key returns the same capsule instead of launching a second one.
+   * create() picks a random key when you leave this out, and asks again with it while the capsule is still being
+   * created (a Windows capsule that is cold-created takes minutes) or when the network or a gateway drops the
+   * request. Pass your own to resume a launch across processes.
+   */
+  idempotencyKey?: string;
+  /** How long create() keeps asking for a capsule that is still being created, in ms (default 15 minutes). */
+  createTimeoutMs?: number;
 }
 
 /** The capsule object returned by create / get / list. */
@@ -64,6 +73,9 @@ export interface Capsule {
   workerId?: string;
   guacamoleUrl?: string;
   customPorts?: PortForward[];
+  /** The console shows the live shared screen (the screen the AI drives): every Linux desktop, and a Windows
+   *  desktop on its VM screen. Console links, control and the live overlay apply. */
+  sharedScreen?: boolean;
   createdAt?: string;
   expiresAt?: string;
   [key: string]: unknown;

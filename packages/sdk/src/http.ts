@@ -27,6 +27,8 @@ export interface RequestOptions {
   /** Override the default Accept / parsing for binary responses. */
   raw?: boolean;
   signal?: AbortSignal;
+  /** Extra headers for this request (e.g. an Idempotency-Key). */
+  headers?: Record<string, string>;
 }
 
 export class Http {
@@ -71,6 +73,7 @@ export class Http {
       Accept: "application/json",
       ...this.authHeader(),
       ...(this.cfg.headers ?? {}),
+      ...(opts.headers ?? {}),
     };
     if (this.cfg.userAgent) headers["User-Agent"] = this.cfg.userAgent;
 

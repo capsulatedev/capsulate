@@ -2,6 +2,10 @@
 
 `@capsulate/cli` (the `cap` command). The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.4.1 (2026-10-10)
+
+- `cap launch` waits for a long launch: a Windows desktop that is cold-created takes minutes, and the SDK 0.4.1 under the CLI keeps asking for it with the same key instead of failing at the gateway's 100 s.
+
 ## 0.4.0 (2026-10-10)
 
 - The complete toolset: `cap element <id> <action>` (set_value, toggle, expand, invoke, select, ... by `--role`, `--name`, `--text`), `cap window <id> <action>` (by `--title` or `--id`), `cap open <id> <target>` (`--wait-ms`), `cap wait-for <id> <condition>` (exit code 1 when it does not hold) and `cap screen <id>`.

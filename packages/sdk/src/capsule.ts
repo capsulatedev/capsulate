@@ -7,6 +7,7 @@
 //   await c.destroy();
 
 import { Browser } from "./browser.js";
+import { postLaunch } from "./launch.js";
 import { runActions, type RunActionsResult, type RunObserve, type RunStep } from "./actions.js";
 import type { ClientContext } from "./internal.js";
 import * as I from "./interaction.js";
@@ -376,7 +377,7 @@ export class Capsule {
    */
   async rollback(
     checkpointId: string,
-    opts: { size?: string; destroyCurrent?: boolean } = {},
+    opts: { size?: string; destroyCurrent?: boolean; idempotencyKey?: string; createTimeoutMs?: number } = {},
   ): Promise<Capsule> {
     const body: Record<string, unknown> = {
       snapshotId: checkpointId,
@@ -384,7 +385,8 @@ export class Capsule {
       size: opts.size ?? this.data.size,
       teamId: this.data.teamId,
     };
-    const data = await this.ctx.http.post<CapsuleData>(`/sessions`, body);
+    // A restore boots a clone and, on Windows, prepares its desktop: minutes, so it asks again like a launch.
+    const data = await postLaunch(this.ctx.http, body, { idempotencyKey: opts.idempotencyKey, createTimeoutMs: opts.createTimeoutMs });
     const restored = new Capsule(this.ctx, data);
     if (opts.destroyCurrent !== false) {
       try {
