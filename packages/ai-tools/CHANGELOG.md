@@ -2,9 +2,13 @@
 
 `@capsulate/ai-tools`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version again from 0.3.0 (0.2.1 was never published; its changes ship in 0.3.0).
 
-## Unreleased
+## 0.4.0 (2026-10-10)
 
-- No changes yet.
+- The complete toolset: `capsulate_element`, `capsulate_window`, `capsulate_open`, `capsulate_wait_for` and `capsulate_screen_info`; an action that could not happen answers `{ ok: false, error, message }`.
+- `capsulate_screenshot` takes `format`, `quality`, `scale` and a region, and returns `scale` and `region`.
+- `capsulate_control` action `pace`.
+- Browser tools: `capsulate_browser_open`, `_snapshot`, `_click`, `_fill`, `_wait`, `_text`.
+- `capsulate_run_actions`: several steps in one call.
 
 ## 0.3.0 (2026-10-09)
 

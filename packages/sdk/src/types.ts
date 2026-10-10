@@ -111,12 +111,30 @@ export interface EnvSetResult {
 }
 
 export interface ScreenshotResult {
-  /** base64-encoded PNG. */
+  /** base64-encoded image, PNG unless asked for JPEG. */
   imageB64: string;
   width?: number;
   height?: number;
   format?: string;
+  /** The scale applied (absent for 1) and the part of the screen captured (absent for all of it): a point in the
+   *  image is at `region.x + x / scale` on the screen. */
+  scale?: number;
+  region?: { x: number; y: number; w: number; h: number };
   [key: string]: unknown;
+}
+
+/** LCU M2.6: fewer bytes travel faster. Without options a screenshot is the whole screen as PNG. */
+export interface ScreenshotOptions {
+  format?: "png" | "jpeg";
+  /** JPEG quality, 1 to 100 (default 75). */
+  quality?: number;
+  /** Shrink to this fraction of the screen, 0.1 to 1. */
+  scale?: number;
+  /** Capture this region of the screen (w and h greater than 0). */
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
 }
 
 export interface InputResult {
@@ -232,6 +250,95 @@ export interface OCRResult {
   backend: string;
   text: string;
   words?: OCRWord[];
+  [key: string]: unknown;
+}
+
+// ── the complete toolset (LCU M2.6): act on elements and windows, open things, wait, read the screen ──
+
+/** What an element action does to the element a selector finds. */
+export type ElementAction =
+  | "set_value"
+  | "clear"
+  | "toggle"
+  | "expand"
+  | "collapse"
+  | "invoke"
+  | "select"
+  | "focus"
+  | "scroll_into_view";
+
+export interface ElementActionOptions {
+  /** The text for set_value; for select, the name of the option to choose inside the element (a combo box or a
+   *  list). */
+  value?: string;
+  /** Only within this window (a part of its title). */
+  window?: string;
+  /** Which match, when several do (0, the first, in find_element's order). */
+  index?: number;
+}
+
+export interface ElementActionResult {
+  backend: string;
+  ok: boolean;
+  /** How it was done: pattern (UI Automation), action or text (AT-SPI), keyboard (typed into the focused element). */
+  method?: string;
+  /** The element as it is afterwards: its value and states (checked, expanded, selected, focused). */
+  element?: UIElement;
+  [key: string]: unknown;
+}
+
+export type WindowAction = "focus" | "minimize" | "maximize" | "restore" | "close" | "move" | "resize";
+
+export interface WindowActionResult {
+  ok: boolean;
+  /** The window as it is afterwards (absent once closed). */
+  window?: WindowInfo;
+  [key: string]: unknown;
+}
+
+export type OpenKind = "url" | "file" | "app";
+
+export interface OpenResult {
+  ok: boolean;
+  kind: OpenKind;
+  /** The app, desktop entry or handler that was started. */
+  launched?: string;
+  /** The new window, when asked to wait for it. */
+  window?: WindowInfo;
+  [key: string]: unknown;
+}
+
+/** present, absent, enabled and text are about elements (a selector); window about a window's title;
+ *  screen_stable about the screen as a whole. */
+export type WaitCondition = "present" | "absent" | "enabled" | "text" | "window" | "screen_stable";
+
+export interface WaitForOptions {
+  selector?: ElementSelector;
+  /** The element conditions look only in this window; for the window condition it is the title to wait for. */
+  window?: string;
+  /** For text: what the element's name or value must contain. */
+  text?: string;
+  /** Default 10000, at most 120000. */
+  timeoutMs?: number;
+  /** For screen_stable: how long nothing may change (default 600). */
+  stableMs?: number;
+}
+
+export interface WaitForResult {
+  backend: string;
+  /** Whether the condition held before the timeout. */
+  met: boolean;
+  waitedMs: number;
+  element?: UIElement;
+  window?: WindowInfo;
+  [key: string]: unknown;
+}
+
+export interface ScreenInfoResult {
+  width: number;
+  height: number;
+  cursor: { x: number; y: number };
+  activeWindow?: WindowInfo;
   [key: string]: unknown;
 }
 
@@ -495,6 +602,10 @@ export interface CatalogArtifact {
 export type ControlState = "free" | "agent" | "human";
 
 /** The "who is driving" state of a desktop capsule's shared screen. */
+/** How the AI's input plays on a watched screen (LCU M2.7). natural and presentation glide the pointer to each
+ *  target, type at a readable rate and leave a beat between the steps of a run; fast (the default) is machine speed. */
+export type Pace = "fast" | "natural" | "presentation";
+
 export interface ControlStatus {
   sessionId: string;
   /** free: nobody holds it. agent: the AI is acting (each input renews a 45 s lease). human: a person holds it. */
@@ -510,6 +621,8 @@ export interface ControlStatus {
   leaseUntil?: string;
   /** Increases on every change. */
   version: number;
+  /** How the AI's input plays on this screen: natural or presentation; absent means fast. */
+  pace?: Pace;
 }
 
 /** Result of one long-poll on the control state. */

@@ -32,6 +32,13 @@ export class CapsulateError extends Error {
     return this.status === 402;
   }
 
+  /** The machine code of the error body, when it has one (human_in_control, browser_error, not_found,
+   *  unsupported). */
+  get code(): string | undefined {
+    const b = this.body as { error?: unknown } | undefined;
+    return b && typeof b === "object" && typeof b.error === "string" ? b.error : undefined;
+  }
+
   /**
    * Phase LCU: a person holds the capsule's shared screen, so an AI input was refused (409). Wait with
    * `waitForHandback()` and retry.

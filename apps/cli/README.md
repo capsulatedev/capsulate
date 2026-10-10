@@ -34,7 +34,12 @@ cap cp ./app.py <id>:/workspace/app.py                # upload a file
 cap cp <id>:/workspace/out.txt ./out.txt              # download a file
 cap env set <id> NODE_ENV=production                   # set env vars
 cap shot <id> -o frame.png                            # desktop screenshot
+cap shot <id> --format jpeg --scale 0.5 -o small.jpg  # a smaller one
 cap click <id> 100 200                                # computer-use
+cap element <id> set_value --role text --value hello  # act on an element, no coordinates
+cap open <id> notepad --wait-ms 8000                  # open an app and wait for its window
+cap wait-for <id> absent --role dialog                # wait instead of sleeping
+cap actions <id> @steps.json --observe screenshot     # several steps in one call
 cap snapshot create <id> -n before-upgrade            # snapshot
 cap volume create data 10                             # 10 GB persistent volume
 cap share create <id> teammate@x.com -p interactive   # share a capsule
@@ -51,7 +56,9 @@ for the full option list, or `cap docs` to open the documentation.
 | Auth | `login`, `configure`, `whoami`, `logout` |
 | Capsules | `launch`, `ls`, `capsule create/list/history/get/destroy/suspend/resume` |
 | Interaction | `exec`, `run`, `cp`, `env set` |
-| Computer-use | `shot`, `click`, `move`, `scroll`, `drag`, `type`, `key` |
+| Computer-use | `shot`, `screen`, `click`, `move`, `scroll`, `drag`, `type`, `key`, `ui-tree`, `find`, `wait`, `wait-for`, `element`, `window`, `windows`, `focus`, `open`, `clipboard`, `ocr`, `trace`, `actions` |
+| Browser | `browser <id> <verb>` (open, navigate, tabs, snapshot, click, fill, select, press, scroll, wait, text, eval, screenshot) |
+| Live | `live`, `control` (take, release, pace), `handoff`, `say` |
 | Snapshots | `snapshot create/list/delete/restore` |
 | Recordings | `record start/stop/status/list/download` |
 | Volumes | `volume create/list/get/delete/attach/detach` |

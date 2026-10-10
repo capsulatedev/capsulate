@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { writeFileSync } from "node:fs";
-import type { ElementSelector, UINode, UITreeResult } from "@capsulate/sdk";
+import type { ElementSelector, ScreenshotResult, UINode, UITreeResult } from "@capsulate/sdk";
 import { withClient } from "./_shared.js";
 import { result, success, info, out, isJsonMode, table, trunc, fmtBytes } from "../output.js";
 
@@ -36,14 +36,24 @@ export function registerComputerUse(program: Command): void {
   program
     .command("shot <id>")
     .description("Capture a desktop screenshot (computer-use)")
-    .option("-o, --out <file>", "Save the PNG to a file instead of printing base64")
+    .option("-o, --out <file>", "Save the image to a file instead of printing base64")
+    .option("--format <format>", "png (default) | jpeg (smaller)")
+    .option("--quality <n>", "JPEG quality, 1 to 100 (default 75)", (v) => parseInt(v, 10))
+    .option("--scale <f>", "Shrink the image to this fraction of the screen, 0.1 to 1", (v) => parseFloat(v))
+    .option("--region <x,y,w,h>", "Only this rectangle of the screen, in pixels")
     .action((id: string, _o, command: Command) =>
       withClient(command, async (client) => {
-        const local = command.opts<{ out?: string }>();
-        const s = await client.capsules.screenshot(id);
+        const local = command.opts<{ out?: string; format?: string; quality?: number; scale?: number; region?: string }>();
+        if (local.format && local.format !== "png" && local.format !== "jpeg") throw new Error("--format must be png or jpeg");
+        const s = await client.capsules.screenshot(id, {
+          format: local.format as "png" | "jpeg" | undefined,
+          quality: local.quality,
+          scale: local.scale,
+          ...parseRegion(local.region),
+        });
         if (local.out) {
           writeFileSync(local.out, Buffer.from(s.imageB64 ?? "", "base64"));
-          success(`Saved screenshot to ${local.out} (${s.width ?? "?"}x${s.height ?? "?"})`);
+          success(`Saved screenshot to ${local.out} (${shotSize(s)})`);
         } else if (isJsonMode()) {
           out(s);
         } else {
@@ -364,9 +374,9 @@ export function registerComputerUse(program: Command): void {
     );
 }
 
-type SelectorOpts = { role?: string; name?: string; text?: string; exact?: boolean; state?: string };
+export type SelectorOpts = { role?: string; name?: string; text?: string; exact?: boolean; state?: string };
 
-function selectorFrom(o: SelectorOpts): ElementSelector {
+export function selectorFrom(o: SelectorOpts): ElementSelector {
   if (!o.role && !o.name && !o.text) throw new Error("Give at least one of --role, --name or --text.");
   const sel: ElementSelector = {};
   if (o.role) sel.role = o.role;
@@ -377,7 +387,7 @@ function selectorFrom(o: SelectorOpts): ElementSelector {
   return sel;
 }
 
-function describeSelector(o: SelectorOpts): string {
+export function describeSelector(o: SelectorOpts): string {
   return [o.role && `role=${o.role}`, o.name && `name="${o.name}"`, o.text && `text="${o.text}"`, o.state && `state=${o.state}`]
     .filter(Boolean)
     .join(" ");
@@ -391,6 +401,12 @@ function parseRegion(s?: string): { x?: number; y?: number; w?: number; h?: numb
   }
   const [x, y, w, h] = parts as [number, number, number, number];
   return { x, y, w, h };
+}
+
+/** A screenshot's size and, when scaled or partial, how it maps to the screen (x = region x + x / scale). */
+function shotSize(s: ScreenshotResult): string {
+  const r = s.region;
+  return `${s.width ?? "?"}x${s.height ?? "?"}` + (s.scale ? `, scale ${s.scale}` : "") + (r ? `, region ${r.x},${r.y} ${r.w}x${r.h}` : "");
 }
 
 function renderTree(d: UITreeResult): string {

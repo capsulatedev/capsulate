@@ -17,8 +17,10 @@ import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { Capsulate, CapsulateError } from "@capsulate/sdk";
+import { Capsulate, CapsulateError, type ScreenshotResult } from "@capsulate/sdk";
 import { registerLiveTools, LIVE_INSTRUCTIONS } from "./tools-live.js";
+import { registerBrowserTools, BROWSER_INSTRUCTIONS } from "./tools-browser.js";
+import { registerActionTools, ACTIONS_INSTRUCTIONS } from "./tools-actions.js";
 
 /// keyFromFile reads CAPSULATE_API_KEY_FILE: a bare key, or a dotenv-style CAPSULATE_API_KEY=... line.
 function keyFromFile(file: string | undefined): string | undefined {
@@ -49,10 +51,12 @@ const cap = new Capsulate({
   apiKey,
   baseUrl: process.env.CAPSULATE_BASE_URL,
   teamId: process.env.CAPSULATE_TEAM_ID,
-  userAgent: "capsulate-mcp/0.3.0",
+  userAgent: "capsulate-mcp/0.4.0",
 });
 
-const server = new McpServer({ name: "capsulate", version: "0.3.0" }, { instructions: LIVE_INSTRUCTIONS });
+const server = new McpServer({ name: "capsulate", version: "0.4.0" }, { instructions: `${LIVE_INSTRUCTIONS}
+${BROWSER_INSTRUCTIONS}
+${ACTIONS_INSTRUCTIONS}` });
 
 type TextResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
@@ -95,6 +99,18 @@ function withShot(r: { screenshot?: { imageB64?: string } }, msg: string) {
       { type: "image" as const, data: img, mimeType: "image/png" },
     ],
   };
+}
+
+// shotNote says what a screenshot shows and how a point in it maps back to the screen, since click and the other
+// input verbs take screen pixels (LCU M2.6: a scaled or partial screenshot is at region x + x / scale).
+function shotNote(s: ScreenshotResult): string {
+  const size = `${s.width ?? "?"}x${s.height ?? "?"} ${s.format === "jpeg" ? "JPEG" : "PNG"}`;
+  const scale = s.scale && s.scale !== 1 ? s.scale : 0;
+  const r = s.region;
+  if (!scale && !r) return `${size} of the whole screen: image pixels are screen pixels.`;
+  const of = r ? `the region ${r.w}x${r.h} at (${r.x}, ${r.y})` : "the whole screen";
+  const map = (o: number | undefined, v: string) => `${o ? `${o} + ` : ""}${v}${scale ? ` / ${scale}` : ""}`;
+  return `${size}${scale ? ` at scale ${scale}` : ""} of ${of}: the point (x, y) in the image is (${map(r?.x, "x")}, ${map(r?.y, "y")}) on the screen.`;
 }
 
 // Shared schema fragment: opt-in post-action screenshot for the input verbs.
@@ -196,7 +212,7 @@ server.registerTool(
   {
     title: "Run a command",
     description:
-      "Execute a command inside a capsule and return stdout, stderr, and the exit code. Provide the command as an argv array, e.g. ['ls','-la','/workspace'].",
+      "Execute a command inside a capsule and return stdout, stderr, and the exit code. Provide the command as an argv array, e.g. ['ls','-la','/workspace']. On a Linux desktop capsule it runs as the desktop user 'capsulate' (home folder, DISPLAY :1, so apps open on the shared screen); prefix 'sudo' for root.",
     inputSchema: {
       sessionId: z.string(),
       command: z.array(z.string()).describe("Command as an argv array"),
@@ -299,15 +315,34 @@ server.registerTool(
   "capsulate_screenshot",
   {
     title: "Take a screenshot",
-    description: "Capture a screenshot of a desktop capsule. Returns the image so you can see the screen.",
-    inputSchema: { sessionId: z.string() },
+    description:
+      "Capture a screenshot of a desktop capsule. Returns the image so you can see the screen. For a smaller, faster image ask for format 'jpeg', a scale such as 0.5, or only a region (x, y, w, h) of the screen; the text after the image says how its points map back to screen pixels, which click and the other tools take.",
+    inputSchema: {
+      sessionId: z.string(),
+      format: z.enum(["png", "jpeg"]).optional().describe("png (default) or jpeg (smaller)"),
+      quality: z.number().optional().describe("JPEG quality, 1 to 100 (default 75)"),
+      scale: z.number().optional().describe("Shrink the image to this fraction of the screen, 0.1 to 1"),
+      x: z.number().optional().describe("Region: left edge, in screen pixels"),
+      y: z.number().optional().describe("Region: top edge"),
+      w: z.number().optional().describe("Region: width"),
+      h: z.number().optional().describe("Region: height"),
+    },
   },
   async (args) => {
     try {
-      const s = await cap.capsules.screenshot(args.sessionId);
+      const s = await cap.capsules.screenshot(args.sessionId, {
+        format: args.format,
+        quality: args.quality,
+        scale: args.scale,
+        x: args.x,
+        y: args.y,
+        w: args.w,
+        h: args.h,
+      });
       return {
         content: [
-          { type: "image" as const, data: s.imageB64 ?? "", mimeType: "image/png" },
+          { type: "image" as const, data: s.imageB64 ?? "", mimeType: s.format === "jpeg" ? "image/jpeg" : "image/png" },
+          { type: "text" as const, text: shotNote(s) },
         ],
       };
     } catch (e) {
@@ -437,6 +472,12 @@ server.registerTool(
 
 // ---- live computer use (Phase LCU): deep verbs, console links, control, handoff, narration ----
 registerLiveTools({ server, cap, ok, err, withShot });
+
+// ---- the browser fast path (LCU M2): the agent's own Chrome over the DevTools Protocol ----
+registerBrowserTools({ server, cap, ok, err, withShot });
+
+// ---- several steps in one call (LCU M2.4): run_actions ----
+registerActionTools({ server, cap, ok, err, withShot });
 
 async function main() {
   const transport = new StdioServerTransport();

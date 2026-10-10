@@ -2,9 +2,13 @@
 
 `@capsulate/sdk`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
-## Unreleased
+## 0.4.0 (2026-10-10)
 
-- No changes yet.
+- The complete toolset (LCU M2.6), on the `Capsule` handle and the `capsules` resource, served on Linux and Windows alike: `elementAction(action, selector, { value, window, index })` acts on an element without coordinates (`set_value`, `clear`, `toggle`, `expand`, `collapse`, `invoke`, `select` with an option by name, `focus`, `scroll_into_view`), with the `setValue(selector, value)` shortcut on the handle; `windowAction(action, { id | title }, { x, y, w, h })` (`minimize`, `maximize`, `restore`, `close`, `move`, `resize`, `focus`); `open(target, { kind, waitMs })` opens a URL, a file or an app by name and can wait for its window; `waitFor(condition, ...)` waits in the capsule for `present`, `absent`, `enabled`, `text`, `window` or `screen_stable` without holding up other calls; `screenInfo()`. `screenshot({ format, quality, scale, x, y, w, h })` returns JPEG, a scaled image or a region (a 1280x800 screen goes from about 42 KiB to 10 KiB as JPEG at half scale). `runActions` takes `element`, `window`, `open`, `wait_for` and `screen` steps. `CapsulateError.code` gives the machine code of a refused call (`not_found`, `unsupported`, `human_in_control`).
+- `setPace(pace)` on the `Capsule` handle and the `capsules` resource: `natural` or `presentation` glide the pointer, type at a readable rate and leave a beat between the steps of a run while a person watches; `fast` is the default. `ControlStatus.pace`.
+- The browser fast path (LCU M2): `capsule.browser` and `cap.capsules.browser(id)` drive the agent's own Chrome in a desktop capsule at page speed: `open`, `navigate`, `tabs`, `snapshot` (an outline with refs), `click`, `fill` (the value is never echoed), `select`, `press`, `scroll`, `wait`, `text`, `eval`, `screenshot`, and `run(verb, fields)`.
+- `runActions(steps, { observe })` on the `Capsule` handle and the `capsules` resource: several steps in one call, run back to back on the server, stopping at the first that fails; `expect` waits for what should follow a step, `optional` lets one fail, `observe` returns a look at the end. Types `RunStep`, `RunActionsResult`, `RunStepResult`.
+- A machine error code with a message (`422 browser_error`) now throws with the message.
 
 ## 0.3.0 (2026-10-09)
 

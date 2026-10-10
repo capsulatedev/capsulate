@@ -143,8 +143,13 @@ export class Http {
 
   private errMessage(status: number, body: unknown): string {
     if (body && typeof body === "object") {
-      const e = (body as Record<string, unknown>).error ?? (body as Record<string, unknown>).message;
-      if (typeof e === "string" && e) return e;
+      const b = body as Record<string, unknown>;
+      const code = typeof b.error === "string" ? b.error : "";
+      const msg = typeof b.message === "string" ? b.message : "";
+      // A machine code with a human message ({"error":"browser_error","message":"no element named ..."}):
+      // the message says what happened; the code stays on CapsulateError.body.
+      if (msg && (!code || /^[a-z0-9_]+$/.test(code))) return msg;
+      if (code) return code;
     }
     if (typeof body === "string" && body.trim()) return body.trim();
     return `Request failed with status ${status}`;

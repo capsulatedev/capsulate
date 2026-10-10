@@ -3,7 +3,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { Capsulate } from "@capsulate/sdk";
+import { CapsulateError, type Capsulate } from "@capsulate/sdk";
 
 type TextResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
@@ -34,6 +34,25 @@ function selectorOf(a: { role?: string; name?: string; text?: string; exact?: bo
   for (const k of ["role", "name", "text", "exact", "state"] as const) if (a[k] !== undefined) s[k] = a[k];
   return s;
 }
+
+// LCU M2.6: an element, window or open action that could not happen is 422 {error: not_found | unsupported |
+// failed, message}. Say what to try next instead of a bare error; anything else (a 409 too) is err's.
+function notDone(e: unknown, next: Record<string, string>): TextResult | undefined {
+  if (!(e instanceof CapsulateError) || e.status !== 422) return undefined;
+  const code = e.code ?? "failed";
+  const text = `Not done (${code}): ${e.message.replace(/[.\s]+$/, "")}.${next[code] ? ` ${next[code]}` : ""}`;
+  return { content: [{ type: "text", text }], isError: true };
+}
+
+const ELEMENT_NEXT: Record<string, string> = {
+  not_found: "Check the selector with capsulate_find_element or capsulate_ui_tree, or wait for the element with capsulate_wait_for.",
+  unsupported: "This element cannot do that: try another action (invoke, toggle, select) or capsulate_click_element.",
+  failed: "Take a screenshot to see what the app shows.",
+};
+const WINDOW_NEXT: Record<string, string> = { not_found: "List the open windows with capsulate_windows." };
+const OPEN_NEXT: Record<string, string> = {
+  not_found: "For an app, try the name its menu shows (Linux 'Text Editor', Windows 'Notepad'); for a file, the full path.",
+};
 
 const MAX_WAIT_SECONDS = 900;
 
@@ -206,7 +225,7 @@ export function registerLiveTools(t: ToolKit) {
     "capsulate_windows",
     {
       title: "List or focus windows",
-      description: "Without a target, list the open windows of a desktop capsule. With `id` or `title`, bring that window to the front.",
+      description: "Without a target, list the open windows of a desktop capsule. With `id` or `title`, bring that window to the front. To minimize, maximize, move, resize or close one, use capsulate_window.",
       inputSchema: { sessionId: z.string(), id: z.string().optional(), title: z.string().optional() },
     },
     async (a) => {
@@ -232,6 +251,131 @@ export function registerLiveTools(t: ToolKit) {
     async (a) => {
       try {
         return ok(await cap.capsules.ocr(a.sessionId, { x: a.x, y: a.y, w: a.w, h: a.h }));
+      } catch (e) {
+        return err(e);
+      }
+    },
+  );
+
+  // ---- the complete toolset (LCU M2.6): act on elements and windows, open things, wait, read the screen ----
+
+  server.registerTool(
+    "capsulate_element",
+    {
+      title: "Act on a UI element",
+      description:
+        "Act on the accessible element a selector finds, without coordinates: set_value (replace a field's text, or a slider's value, with value), clear, toggle (a check box), expand or collapse (a menu, combo box or tree item), invoke (press a button, follow a link), select (a list item, tab or radio button; with value, the option of that name inside a combo box or list), focus, scroll_into_view. Prefer it to clicking and typing at guessed coordinates: it acts on exactly the element you name. Roles match across systems ('button', 'push button' and 'Button' are the same); a multi-line editor is 'document' on Windows (Notepad) and 'text' on Linux. Returns the element afterwards (its value and states such as checked, expanded, selected).",
+      inputSchema: {
+        sessionId: z.string(),
+        action: z.enum(["set_value", "clear", "toggle", "expand", "collapse", "invoke", "select", "focus", "scroll_into_view"]),
+        ...selectorSchema,
+        value: z.string().optional().describe("For set_value, the new text; for select, the name of the option to choose inside the element"),
+        window: z.string().optional().describe("Only within the window whose title contains this"),
+        index: z.number().optional().describe("Which match when several do (0, the first, in capsulate_find_element's order)"),
+      },
+    },
+    async (a) => {
+      try {
+        return ok(await cap.capsules.elementAction(a.sessionId, a.action, selectorOf(a), { value: a.value, window: a.window, index: a.index }));
+      } catch (e) {
+        return notDone(e, ELEMENT_NEXT) ?? err(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "capsulate_window",
+    {
+      title: "Manage a window",
+      description:
+        "Minimize, maximize, restore, close, move, resize or focus a window of a desktop capsule, by id (from capsulate_windows) or a part of its title. move takes x, y (the new top-left corner); resize takes w, h (each at least 50). close asks the app to close, as the title bar's close button does, so it may first ask to save. Returns the window afterwards (none after close).",
+      inputSchema: {
+        sessionId: z.string(),
+        action: z.enum(["minimize", "maximize", "restore", "close", "move", "resize", "focus"]),
+        id: z.string().optional().describe("Window id from capsulate_windows"),
+        title: z.string().optional().describe("A part of the window's title"),
+        x: z.number().optional().describe("For move: the new left edge, in screen pixels"),
+        y: z.number().optional().describe("For move: the new top edge"),
+        w: z.number().optional().describe("For resize: the new width (at least 50)"),
+        h: z.number().optional().describe("For resize: the new height (at least 50)"),
+      },
+    },
+    async (a) => {
+      try {
+        return ok(await cap.capsules.windowAction(a.sessionId, a.action, { id: a.id, title: a.title }, { x: a.x, y: a.y, w: a.w, h: a.h }));
+      } catch (e) {
+        return notDone(e, WINDOW_NEXT) ?? err(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "capsulate_open",
+    {
+      title: "Open a URL, a file or an app",
+      description:
+        "Open a URL (in the default browser), a file (in its default app) or an app by name on a desktop capsule, instead of hunting through menus. Without kind it is guessed: a path (/, ~, C:\\) is a file, a scheme (https:, mailto:) or www. is a URL, anything else is an app name (a Linux menu entry such as 'Text Editor', a Windows Start menu entry such as 'Notepad', or a program on the path). Pass waitMs to wait for the new window and get it back. For web pages you will read or fill in, capsulate_browser_open is faster and more exact.",
+      inputSchema: {
+        sessionId: z.string(),
+        target: z.string().describe("A URL, a file path or an app name"),
+        kind: z.enum(["url", "file", "app"]).optional().describe("Default: guessed from the target"),
+        waitMs: z.number().optional().describe("Wait up to this long for the new window and return it (at most 30000)"),
+      },
+    },
+    async (a) => {
+      try {
+        return ok(await cap.capsules.open(a.sessionId, a.target, { kind: a.kind, waitMs: a.waitMs }));
+      } catch (e) {
+        return notDone(e, OPEN_NEXT) ?? err(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "capsulate_wait_for",
+    {
+      title: "Wait for a condition",
+      description:
+        "Wait in the capsule until a condition holds, instead of sleeping or taking screenshot after screenshot: present (an element matching the selector is there), absent (none is any more: a dialog closed, a spinner went away), enabled (a matching element can be used), text (an element's name or value contains text; the selector is optional), window (a window whose title contains window is open), screen_stable (nothing on screen changed for stableMs: an app or page finished drawing). Returns met (true or false), waitedMs and what matched. The wait never holds up the capsule's other calls.",
+      inputSchema: {
+        sessionId: z.string(),
+        condition: z.enum(["present", "absent", "enabled", "text", "window", "screen_stable"]),
+        ...selectorSchema,
+        text: z.string().optional().describe("For text: what the name or value must contain. For present, absent and enabled: match the name OR the value"),
+        window: z.string().optional().describe("For window: a part of the title to wait for. For the element conditions: only within that window"),
+        timeoutMs: z.number().optional().describe("Default 10000, at most 120000"),
+        stableMs: z.number().optional().describe("For screen_stable: how long nothing may change (default 600, at most 10000)"),
+      },
+    },
+    async (a) => {
+      try {
+        const forText = a.condition === "text";
+        const sel = selectorOf({ ...a, text: forText ? undefined : a.text });
+        return ok(
+          await cap.capsules.waitFor(a.sessionId, a.condition, {
+            selector: Object.keys(sel).length ? sel : undefined,
+            window: a.window,
+            text: forText ? a.text : undefined,
+            timeoutMs: a.timeoutMs,
+            stableMs: a.stableMs,
+          }),
+        );
+      } catch (e) {
+        return err(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "capsulate_screen_info",
+    {
+      title: "Read the screen's size",
+      description: "The screen's size in pixels, the pointer's position and the active window of a desktop capsule. Use it instead of a screenshot when that is all you need.",
+      inputSchema: { sessionId: z.string() },
+    },
+    async (a) => {
+      try {
+        return ok(await cap.capsules.screenInfo(a.sessionId));
       } catch (e) {
         return err(e);
       }
@@ -270,11 +414,12 @@ export function registerLiveTools(t: ToolKit) {
     {
       title: "Who is driving the screen",
       description:
-        "Read or change who drives a desktop capsule's shared screen. state 'free' (nobody), 'agent' (you; every input renews a 45 s hold) or 'human' (a person; your input is refused until they hand it back). action 'status' (default) reads it, 'take' claims it for you, 'release' lets go when you finish so the person can use the screen.",
+        "Read or change who drives a desktop capsule's shared screen. state 'free' (nobody), 'agent' (you; every input renews a 45 s hold) or 'human' (a person; your input is refused until they hand it back). action 'status' (default) reads it, 'take' claims it for you, 'release' lets go when you finish so the person can use the screen, 'pace' sets how your input plays while a person watches: 'natural' (the pointer glides, typing is readable) or 'presentation' (slow enough to follow every step); 'fast' is the default.",
       inputSchema: {
         sessionId: z.string(),
-        action: z.enum(["status", "take", "release"]).optional(),
+        action: z.enum(["status", "take", "release", "pace"]).optional(),
         note: z.string().optional().describe("Optional note shown on the console"),
+        pace: z.enum(["fast", "natural", "presentation"]).optional().describe("For action 'pace'"),
       },
     },
     async (a) => {
@@ -284,7 +429,9 @@ export function registerLiveTools(t: ToolKit) {
             ? await cap.capsules.takeControl(a.sessionId, { note: a.note })
             : a.action === "release"
               ? await cap.capsules.releaseControl(a.sessionId, { note: a.note })
-              : await cap.capsules.control(a.sessionId);
+              : a.action === "pace"
+                ? await cap.capsules.setPace(a.sessionId, a.pace ?? "natural")
+                : await cap.capsules.control(a.sessionId);
         return ok(st);
       } catch (e) {
         return err(e);
@@ -363,7 +510,7 @@ function handbackSummary(r: { handedBack: boolean; control: { state: string }; n
 
 /** Guidance the MCP client shows the model: how to work on a screen a person watches. */
 export const LIVE_INSTRUCTIONS = [
-  "Capsulate gives you isolated cloud computers (capsules). Desktop capsules (templates with 'desktop' in the id) have a screen you drive with screenshot, click, type and key, plus the UI tree (capsulate_ui_tree, capsulate_find_element, capsulate_click_element), which is faster and more exact than reading pixels.",
-  "A person can watch a desktop capsule live. Call capsulate_console_link and share or open the URL. While they watch: narrate each step with capsulate_say; prefer capsulate_click_element over guessed coordinates; release the screen with capsulate_control action 'release' when you finish.",
+  "Capsulate gives you isolated cloud computers (capsules). Desktop capsules (templates with 'desktop' in the id) have a screen you drive with screenshot, click, type and key, plus the UI tree (capsulate_ui_tree, capsulate_find_element, capsulate_click_element, capsulate_element), which is faster and more exact than reading pixels. Start apps, files and URLs with capsulate_open, manage windows with capsulate_window, and wait with capsulate_wait_for instead of sleeping.",
+  "A person can watch a desktop capsule live. Call capsulate_console_link and share or open the URL. While they watch: narrate each step with capsulate_say; prefer capsulate_click_element and capsulate_element over guessed coordinates; release the screen with capsulate_control action 'release' when you finish.",
   "When you need the person (a sign in, a CAPTCHA, a payment, a judgement call), call capsulate_handoff with a clear note and wait. Never type passwords, card numbers or other secrets yourself. If an input returns human_in_control, the person holds the screen: call capsulate_wait_for_handback and retry.",
 ].join("\n");

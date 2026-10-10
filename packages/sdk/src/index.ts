@@ -7,6 +7,10 @@
 export { Capsulate } from "./client.js";
 export type { CapsulateOptions } from "./client.js";
 export { Capsule } from "./capsule.js";
+export { Browser, browserCall } from "./browser.js";
+export type { BrowserTarget, BrowserElement, BrowserPage, BrowserSnapshot, BrowserTab, BrowserResult } from "./browser.js";
+export { runActions } from "./actions.js";
+export type { RunStep, RunObserve, RunStepResult, RunStopReason, RunActionsResult } from "./actions.js";
 export { CapsulateError, CapsulateAuthError } from "./errors.js";
 export { encodeBase64, decodeBase64 } from "./internal.js";
 

@@ -14,7 +14,7 @@
 // anywhere; you bring your own framework. See the README for per-framework one-liners.
 
 import { z, type ZodTypeAny } from "zod";
-import { Capsulate, type CapsulateOptions } from "@capsulate/sdk";
+import { Capsulate, CapsulateError, type CapsulateOptions } from "@capsulate/sdk";
 
 export interface ToolSpec<P extends ZodTypeAny = ZodTypeAny> {
   name: string;
@@ -24,6 +24,17 @@ export interface ToolSpec<P extends ZodTypeAny = ZodTypeAny> {
   /** The same input schema (zod). AI SDK v5 name. */
   inputSchema: P;
   execute: (args: z.infer<P>) => Promise<unknown>;
+}
+
+/** An element, window or open action that could not happen (422: not_found, unsupported or failed) is an answer the
+ *  model can act on, like click_element's "element not found": return it instead of throwing. */
+async function orNotDone<T>(p: Promise<T>): Promise<T | { ok: false; error: string; message: string }> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof CapsulateError && e.status === 422) return { ok: false, error: e.code ?? "failed", message: e.message };
+    throw e;
+  }
 }
 
 /** Build the Capsulate agent tool specs bound to a client (or client options). */
@@ -59,7 +70,8 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     },
     {
       name: "capsulate_exec",
-      description: "Run a shell command (as an argv array) inside a capsule. Returns stdout, stderr, exit code.",
+      description:
+        "Run a shell command (as an argv array) inside a capsule. Returns stdout, stderr, exit code. On a Linux desktop capsule it runs as the desktop user 'capsulate' (home folder, DISPLAY :1); prefix 'sudo' for root.",
       parameters: z.object({
         sessionId: z.string(),
         command: z.array(z.string()).describe("argv array, e.g. ['ls','-la']"),
@@ -90,11 +102,20 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     {
       name: "capsulate_screenshot",
       description:
-        "Take a screenshot of a desktop capsule's screen. Returns a base64 PNG plus its width/height. Use to see the screen before acting.",
-      parameters: z.object({ sessionId: z.string() }),
-      execute: async ({ sessionId }) => {
-        const s = await cap.capsules.screenshot(sessionId);
-        return { imageB64: s.imageB64, width: s.width, height: s.height, format: s.format };
+        "Take a screenshot of a desktop capsule's screen. Returns a base64 image (PNG unless format is 'jpeg') plus its width/height. Use to see the screen before acting. For fewer bytes ask for format 'jpeg', a scale such as 0.5, or a region (x, y, w, h); then a point (x, y) in the image is at (region.x + x / scale, region.y + y / scale) on the screen, and clicks take screen pixels.",
+      parameters: z.object({
+        sessionId: z.string(),
+        format: z.enum(["png", "jpeg"]).optional().describe("png (default) or jpeg (smaller)"),
+        quality: z.number().optional().describe("JPEG quality, 1 to 100 (default 75)"),
+        scale: z.number().optional().describe("shrink to this fraction of the screen, 0.1 to 1"),
+        x: z.number().optional().describe("region: left edge in screen pixels"),
+        y: z.number().optional(),
+        w: z.number().optional(),
+        h: z.number().optional(),
+      }),
+      execute: async ({ sessionId, format, quality, scale, x, y, w, h }) => {
+        const s = await cap.capsules.screenshot(sessionId, { format, quality, scale, x, y, w, h });
+        return { imageB64: s.imageB64, width: s.width, height: s.height, format: s.format, scale: s.scale, region: s.region };
       },
     },
     {
@@ -296,14 +317,16 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     {
       name: "capsulate_control",
       description:
-        "Read or change who drives a desktop capsule's screen: 'free', 'agent' (you) or 'human' (a person; your input is refused until they hand it back). action 'status' (default), 'take', or 'release' when you finish.",
+        "Read or change who drives a desktop capsule's screen: 'free', 'agent' (you) or 'human' (a person; your input is refused until they hand it back). action 'status' (default), 'take', 'release' when you finish, or 'pace' to set how your input plays while a person watches: 'natural' or 'presentation' ('fast' is the default).",
       parameters: z.object({
         sessionId: z.string(),
-        action: z.enum(["status", "take", "release"]).optional(),
+        action: z.enum(["status", "take", "release", "pace"]).optional(),
+        pace: z.enum(["fast", "natural", "presentation"]).optional(),
       }),
-      execute: async ({ sessionId, action }) => {
+      execute: async ({ sessionId, action, pace }) => {
         if (action === "take") return cap.capsules.takeControl(sessionId);
         if (action === "release") return cap.capsules.releaseControl(sessionId);
+        if (action === "pace") return cap.capsules.setPace(sessionId, pace ?? "natural");
         return cap.capsules.control(sessionId);
       },
     },
@@ -328,6 +351,166 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
           template: c.templateId,
         }));
       },
+    },
+    // ---- the browser fast path (LCU M2): the agent's own Chrome, read as text with refs, acted on at page speed ----
+    {
+      name: "capsulate_browser_open",
+      description:
+        "Open the agent's own Chrome on a desktop capsule (a person watching sees it) and optionally load a url. For web pages prefer the capsulate_browser_* tools: exact and far faster than screenshots and clicks.",
+      parameters: z.object({ sessionId: z.string(), url: z.string().optional() }),
+      execute: async ({ sessionId, url }) => cap.capsules.browser(sessionId).open(url),
+    },
+    {
+      name: "capsulate_browser_snapshot",
+      description:
+        "Read the current page as a list of elements with refs (e.g. e12, link, 'Pricing'). Act on them by ref with the other browser tools; take a new snapshot after the page changes.",
+      parameters: z.object({
+        sessionId: z.string(),
+        interactive: z.boolean().optional().describe("only elements you can click or type into"),
+        max: z.number().optional(),
+      }),
+      execute: async ({ sessionId, interactive, max }) => cap.capsules.browser(sessionId).snapshot({ interactive, max }),
+    },
+    {
+      name: "capsulate_browser_click",
+      description: "Click an element of the page by ref (from capsulate_browser_snapshot), CSS selector or visible text.",
+      parameters: z.object({ sessionId: z.string(), ref: z.string().optional(), selector: z.string().optional(), text: z.string().optional() }),
+      execute: async ({ sessionId, ref, selector, text }) => cap.capsules.browser(sessionId).click({ ref, selector, text }),
+    },
+    {
+      name: "capsulate_browser_fill",
+      description: "Type a value into a page field (replacing it); submit presses Enter. Never for passwords or card numbers.",
+      parameters: z.object({
+        sessionId: z.string(),
+        ref: z.string().optional(),
+        selector: z.string().optional(),
+        text: z.string().optional(),
+        value: z.string(),
+        submit: z.boolean().optional(),
+      }),
+      execute: async ({ sessionId, ref, selector, text, value, submit }) =>
+        cap.capsules.browser(sessionId).fill({ ref, selector, text }, value, { submit }),
+    },
+    {
+      name: "capsulate_browser_wait",
+      description: "Wait until an element or text appears in the page (state 'hidden': until it goes away).",
+      parameters: z.object({
+        sessionId: z.string(),
+        ref: z.string().optional(),
+        selector: z.string().optional(),
+        text: z.string().optional(),
+        state: z.enum(["visible", "hidden"]).optional(),
+        timeoutMs: z.number().optional(),
+      }),
+      execute: async ({ sessionId, ref, selector, text, state, timeoutMs }) =>
+        cap.capsules.browser(sessionId).wait({ ref, selector, text }, { state, timeoutMs }),
+    },
+    {
+      name: "capsulate_browser_text",
+      description: "The page's visible text, or one element's.",
+      parameters: z.object({ sessionId: z.string(), ref: z.string().optional(), selector: z.string().optional(), max: z.number().optional() }),
+      execute: async ({ sessionId, ref, selector, max }) => cap.capsules.browser(sessionId).text({ ref, selector }, { max }),
+    },
+    // ---- the complete toolset (LCU M2.6): act on elements and windows, open things, wait, read the screen ----
+    {
+      name: "capsulate_element",
+      description:
+        "Act on the UI element a selector finds, without coordinates: set_value (replace a field's text with value), clear, toggle (a check box), expand or collapse (a menu, combo box or tree item), invoke (press a button, follow a link), select (a list item or tab; with value, the option of that name inside a combo box or list), focus, scroll_into_view. More reliable than clicking and typing at guessed pixels. Roles match across systems; a multi-line editor is 'document' on Windows, 'text' on Linux. Returns the element afterwards (value, states such as checked or expanded), or ok false with error not_found or unsupported.",
+      parameters: z.object({
+        sessionId: z.string(),
+        action: z.enum(["set_value", "clear", "toggle", "expand", "collapse", "invoke", "select", "focus", "scroll_into_view"]),
+        role: z.string().optional().describe("e.g. button, text, check box, combo box"),
+        name: z.string().optional().describe("accessible name / label"),
+        text: z.string().optional().describe("match against name OR value"),
+        exact: z.boolean().optional(),
+        state: z.string().optional().describe("e.g. enabled, visible, focused"),
+        value: z.string().optional().describe("set_value: the new text; select: the option to choose inside the element"),
+        window: z.string().optional().describe("only within a window whose title contains this"),
+        index: z.number().optional().describe("which match when several do (0 = the first)"),
+      }),
+      execute: async ({ sessionId, action, role, name, text, exact, state, value, window, index }) =>
+        orNotDone(cap.capsules.elementAction(sessionId, action, { role, name, text, exact, state }, { value, window, index })),
+    },
+    {
+      name: "capsulate_window",
+      description:
+        "Minimize, maximize, restore, close, move ({x, y}: the new top-left corner), resize ({w, h}: at least 50) or focus a window, by a part of its title or by id (capsulate_screen_info gives the active window's). close asks the app to close, so it may first ask to save. Returns the window afterwards (none after close).",
+      parameters: z.object({
+        sessionId: z.string(),
+        action: z.enum(["minimize", "maximize", "restore", "close", "move", "resize", "focus"]),
+        id: z.string().optional(),
+        title: z.string().optional().describe("a part of the window's title"),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        w: z.number().optional(),
+        h: z.number().optional(),
+      }),
+      execute: async ({ sessionId, action, id, title, x, y, w, h }) =>
+        orNotDone(cap.capsules.windowAction(sessionId, action, { id, title }, { x, y, w, h })),
+    },
+    {
+      name: "capsulate_open",
+      description:
+        "Open a URL (default browser), a file (its default app) or an app by name on a desktop capsule, instead of hunting through menus. The kind is guessed unless given: a path is a file, a scheme (https:) or www. is a URL, anything else an app name ('Text Editor' or 'Mousepad' on Linux, 'Notepad' on Windows, or a program on the path). waitMs waits for the new window and returns it.",
+      parameters: z.object({
+        sessionId: z.string(),
+        target: z.string().describe("a URL, a file path or an app name"),
+        kind: z.enum(["url", "file", "app"]).optional(),
+        waitMs: z.number().optional().describe("wait up to this long for the new window (at most 30000)"),
+      }),
+      execute: async ({ sessionId, target, kind, waitMs }) => orNotDone(cap.capsules.open(sessionId, target, { kind, waitMs })),
+    },
+    {
+      name: "capsulate_wait_for",
+      description:
+        "Wait in the capsule until a condition holds, instead of sleeping: present (an element matching the selector is there), absent (none is any more: a dialog closed), enabled (a matching element can be used), text (an element's name or value contains text), window (a window whose title contains window is open), screen_stable (nothing on screen changed for stableMs). Returns met (true or false) and waitedMs.",
+      parameters: z.object({
+        sessionId: z.string(),
+        condition: z.enum(["present", "absent", "enabled", "text", "window", "screen_stable"]),
+        role: z.string().optional(),
+        name: z.string().optional(),
+        text: z.string().optional().describe("text: what the name or value must contain; present, absent, enabled: match name OR value"),
+        exact: z.boolean().optional(),
+        state: z.string().optional(),
+        window: z.string().optional().describe("window: the title to wait for; otherwise only within that window"),
+        timeoutMs: z.number().optional().describe("default 10000, at most 120000"),
+        stableMs: z.number().optional().describe("screen_stable: how long nothing may change (default 600)"),
+      }),
+      execute: async ({ sessionId, condition, role, name, text, exact, state, window, timeoutMs, stableMs }) => {
+        const forText = condition === "text";
+        const sel = { role, name, text: forText ? undefined : text, exact, state };
+        const hasSel = Object.values(sel).some((v) => v !== undefined);
+        return cap.capsules.waitFor(sessionId, condition, {
+          selector: hasSel ? sel : undefined,
+          window,
+          text: forText ? text : undefined,
+          timeoutMs,
+          stableMs,
+        });
+      },
+    },
+    {
+      name: "capsulate_screen_info",
+      description: "The screen's size, the pointer's position and the active window of a desktop capsule (cheaper than a screenshot).",
+      parameters: z.object({ sessionId: z.string() }),
+      execute: async ({ sessionId }) => cap.capsules.screenInfo(sessionId),
+    },
+    // ---- several steps in one call (LCU M2.4) ----
+    {
+      name: "capsulate_run_actions",
+      description:
+        "Run a list of steps on a desktop capsule in ONE call, back to back; the run stops at the first step that fails. Prefer it over one call per step when you know what comes next. " +
+        "Each step is {do: verb, ...fields}: click {x, y}, type {text}, key {keys}, move, scroll, drag, screenshot, ui_tree, find_element {selector}, wait_element {selector, timeoutMs}, clipboard, clipboard_set {text}, windows, window_focus {title}, ocr; " +
+        "element {action, selector, value?} (set_value, toggle, expand, invoke, select, ...), window {action, title | id} (minimize, maximize, move, resize, close, ...), open {target, waitMs?}, wait_for {condition, selector?, text?, window?, timeoutMs?} (a wait that ends unmet fails the step), screen; " +
+        "the browser as browser_<verb> (browser_navigate {url}, browser_click {ref | text}, browser_fill {ref, value}, browser_wait {text}, browser_snapshot, ...); " +
+        "click_element {selector: {role?, name?, text?}} (find, waiting up to 5 s, then click), say {text}, pause {ms}. " +
+        "expect on a step is a wait that must succeed after it; optional: true lets a step fail. observe returns a look at the end: 'screenshot', 'ui_tree' or 'browser_snapshot'.",
+      parameters: z.object({
+        sessionId: z.string(),
+        steps: z.array(z.object({ do: z.string() }).passthrough()).min(1).max(50),
+        observe: z.enum(["none", "screenshot", "ui_tree", "browser_snapshot"]).optional(),
+      }),
+      execute: async ({ sessionId, steps, observe }) => cap.capsules.runActions(sessionId, steps, { observe }),
     },
   ];
   return specs.map((s) => ({ ...s, inputSchema: s.parameters }));

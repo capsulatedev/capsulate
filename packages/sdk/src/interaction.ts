@@ -21,11 +21,24 @@ import type {
   ClipboardResult,
   WindowListResult,
   OCRResult,
+  ScreenshotOptions,
+  ElementAction,
+  ElementActionOptions,
+  ElementActionResult,
+  WindowAction,
+  WindowActionResult,
+  OpenKind,
+  OpenResult,
+  WaitCondition,
+  WaitForOptions,
+  WaitForResult,
+  ScreenInfoResult,
   TraceResult,
   ControlStatus,
   ControlWaitResult,
   HandbackResult,
   ConsoleLink,
+  Pace,
 } from "./types.js";
 
 const enc = encodeURIComponent;
@@ -118,8 +131,9 @@ export async function setEnv(
 
 // ---- computer-use (desktop capsules) ----
 
-export async function screenshot(http: Http, sessionId: string): Promise<ScreenshotResult> {
-  return http.post<ScreenshotResult>(`/sessions/${enc(sessionId)}/screenshot`, { sessionId });
+/** The screen as PNG; with options as JPEG, scaled, or a region of it (LCU M2.6: fewer bytes travel faster). */
+export async function screenshot(http: Http, sessionId: string, opts: ScreenshotOptions = {}): Promise<ScreenshotResult> {
+  return http.post<ScreenshotResult>(`/sessions/${enc(sessionId)}/screenshot`, { sessionId, ...opts });
 }
 
 /** Spread the optional post-action screenshot fields into a request body (omits when unset). */
@@ -285,6 +299,71 @@ export async function ocr(
   return http.post<OCRResult>(`/sessions/${enc(sessionId)}/ocr`, { sessionId, ...region });
 }
 
+// ---- the complete toolset (LCU M2.6) ----
+
+/**
+ * Act on the element a selector finds, without coordinates: set its value, clear, toggle, expand, collapse,
+ * invoke (its default action), select (or choose an option inside it by name), focus, scroll it into view.
+ * Throws CapsulateError (422) with code not_found or unsupported when it could not happen.
+ */
+export async function elementAction(
+  http: Http,
+  sessionId: string,
+  action: ElementAction,
+  selector: ElementSelector,
+  opts: ElementActionOptions = {},
+): Promise<ElementActionResult> {
+  return http.post<ElementActionResult>(`/sessions/${enc(sessionId)}/element/${enc(action)}`, {
+    sessionId,
+    selector,
+    ...opts,
+  });
+}
+
+/** Minimize, maximize, restore, close, move ({x, y}), resize ({w, h}) or focus a window, by id or a part of its title. */
+export async function windowAction(
+  http: Http,
+  sessionId: string,
+  action: WindowAction,
+  target: { id?: string; title?: string },
+  opts: { x?: number; y?: number; w?: number; h?: number } = {},
+): Promise<WindowActionResult> {
+  return http.post<WindowActionResult>(`/sessions/${enc(sessionId)}/windows/${enc(action)}`, {
+    sessionId,
+    ...target,
+    ...opts,
+  });
+}
+
+/**
+ * Open a URL (the default browser), a file (its default app) or an app by name (a Linux desktop entry, a Windows
+ * Start menu entry or a program on the path). The kind is guessed from the target unless given; `waitMs` waits
+ * for the new window and returns it.
+ */
+export async function open(
+  http: Http,
+  sessionId: string,
+  target: string,
+  opts: { kind?: OpenKind; waitMs?: number } = {},
+): Promise<OpenResult> {
+  return http.post<OpenResult>(`/sessions/${enc(sessionId)}/open`, { sessionId, target, ...opts });
+}
+
+/** Wait in the capsule until a condition holds (or the timeout ends); the wait never holds up other calls. */
+export async function waitFor(
+  http: Http,
+  sessionId: string,
+  condition: WaitCondition,
+  opts: WaitForOptions = {},
+): Promise<WaitForResult> {
+  return http.post<WaitForResult>(`/sessions/${enc(sessionId)}/wait_for`, { sessionId, condition, ...opts });
+}
+
+/** The screen's size, the pointer's position and the active window. */
+export async function screenInfo(http: Http, sessionId: string): Promise<ScreenInfoResult> {
+  return http.post<ScreenInfoResult>(`/sessions/${enc(sessionId)}/screen`, { sessionId });
+}
+
 /** The live structured action trace (Phase CU.5) — every interaction this run, in order. */
 export async function getTrace(http: Http, sessionId: string): Promise<TraceResult> {
   return http.get<TraceResult>(`/sessions/${enc(sessionId)}/trace`);
@@ -316,6 +395,11 @@ export async function releaseControl(
   opts: { as?: "agent" | "person"; note?: string } = {},
 ): Promise<ControlStatus> {
   return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/release`, { as: opts.as, note: opts.note });
+}
+
+/** Set how the AI's input plays on the screen (LCU M2.7): "natural" or "presentation" for a person watching. */
+export async function setPace(http: Http, sessionId: string, pace: Pace): Promise<ControlStatus> {
+  return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/pace`, { pace });
 }
 
 /** Hand the screen to a person with a note saying what you need ("Please sign in, then hand it back"). */

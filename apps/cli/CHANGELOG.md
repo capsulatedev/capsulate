@@ -2,9 +2,13 @@
 
 `@capsulate/cli` (the `cap` command). The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
-## Unreleased
+## 0.4.0 (2026-10-10)
 
-- No changes yet.
+- The complete toolset: `cap element <id> <action>` (set_value, toggle, expand, invoke, select, ... by `--role`, `--name`, `--text`), `cap window <id> <action>` (by `--title` or `--id`), `cap open <id> <target>` (`--wait-ms`), `cap wait-for <id> <condition>` (exit code 1 when it does not hold) and `cap screen <id>`.
+- `cap shot` takes `--format jpeg`, `--quality`, `--scale` and `--region x,y,w,h`.
+- `cap control pace <id> <fast|natural|presentation>`.
+- `cap browser <id> <verb> [fields]`: the browser fast path (snapshot prints the outline, `screenshot -o` saves the image).
+- `cap actions <id> <steps>`: several steps in one call, from a JSON list, `@file` or `-` (stdin); `--observe screenshot -o after.png`; exit code 1 when the run stops early.
 
 ## 0.3.0 (2026-10-09)
 

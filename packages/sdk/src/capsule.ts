@@ -6,6 +6,8 @@
 //   await c.writeFile("/workspace/app.py", "print('hi')");
 //   await c.destroy();
 
+import { Browser } from "./browser.js";
+import { runActions, type RunActionsResult, type RunObserve, type RunStep } from "./actions.js";
 import type { ClientContext } from "./internal.js";
 import * as I from "./interaction.js";
 import { Recordings } from "./resources/recordings.js";
@@ -36,6 +38,18 @@ import type {
   ClipboardResult,
   WindowListResult,
   OCRResult,
+  ScreenshotOptions,
+  ElementAction,
+  ElementActionOptions,
+  ElementActionResult,
+  WindowAction,
+  WindowActionResult,
+  OpenKind,
+  OpenResult,
+  WaitCondition,
+  WaitForOptions,
+  WaitForResult,
+  ScreenInfoResult,
   UIElement,
   TraceResult,
   RunReport,
@@ -43,6 +57,7 @@ import type {
   ControlStatus,
   HandbackResult,
   ConsoleLink,
+  Pace,
 } from "./types.js";
 
 export class Capsule {
@@ -99,9 +114,21 @@ export class Capsule {
     return I.setEnv(this.ctx.http, this.id, vars, secret);
   }
 
+  /** The browser fast path: this capsule's agent Chrome, driven at page speed (LCU M2). */
+  get browser(): Browser {
+    return new Browser(this.ctx.http, this.id);
+  }
+
+  /** Several steps in one call: they run back to back on the server and the run stops at the first that fails
+   *  (LCU M2.4). See RunStep for the verbs; `observe` returns a look at the end. */
+  runActions(steps: RunStep[], opts?: { observe?: RunObserve }): Promise<RunActionsResult> {
+    return runActions(this.ctx.http, this.id, steps, opts);
+  }
+
   // ---- computer-use ----
-  screenshot(): Promise<ScreenshotResult> {
-    return I.screenshot(this.ctx.http, this.id);
+  /** The screen as PNG; with options as JPEG, scaled, or a region of it. */
+  screenshot(opts?: ScreenshotOptions): Promise<ScreenshotResult> {
+    return I.screenshot(this.ctx.http, this.id, opts);
   }
   click(
     x: number,
@@ -159,6 +186,38 @@ export class Capsule {
     return I.ocr(this.ctx.http, this.id, region);
   }
 
+  // ---- the complete toolset (LCU M2.6) ----
+
+  /** Act on the element a selector finds, without coordinates (set_value, toggle, expand, invoke, select, ...).
+   *  Throws CapsulateError 422 (code not_found or unsupported) when it could not happen. */
+  elementAction(action: ElementAction, selector: ElementSelector, opts?: ElementActionOptions): Promise<ElementActionResult> {
+    return I.elementAction(this.ctx.http, this.id, action, selector, opts);
+  }
+  /** Replace a field's text (or a slider's value) by element. */
+  setValue(selector: ElementSelector, value: string, opts?: { window?: string; index?: number }): Promise<ElementActionResult> {
+    return I.elementAction(this.ctx.http, this.id, "set_value", selector, { ...opts, value });
+  }
+  /** Minimize, maximize, restore, close, move ({x, y}), resize ({w, h}) or focus a window. */
+  windowAction(
+    action: WindowAction,
+    target: { id?: string; title?: string },
+    opts?: { x?: number; y?: number; w?: number; h?: number },
+  ): Promise<WindowActionResult> {
+    return I.windowAction(this.ctx.http, this.id, action, target, opts);
+  }
+  /** Open a URL, a file or an app by name; `waitMs` waits for its window. */
+  open(target: string, opts?: { kind?: OpenKind; waitMs?: number }): Promise<OpenResult> {
+    return I.open(this.ctx.http, this.id, target, opts);
+  }
+  /** Wait in the capsule until a condition holds: present, absent, enabled, text, window, screen_stable. */
+  waitFor(condition: WaitCondition, opts?: WaitForOptions): Promise<WaitForResult> {
+    return I.waitFor(this.ctx.http, this.id, condition, opts);
+  }
+  /** The screen's size, the pointer and the active window. */
+  screenInfo(): Promise<ScreenInfoResult> {
+    return I.screenInfo(this.ctx.http, this.id);
+  }
+
   // ---- live computer use (Phase LCU): the shared screen, handoff, narration, console links ----
 
   /** Who is driving this capsule's shared screen: free, agent (the AI) or human. */
@@ -172,6 +231,10 @@ export class Capsule {
   /** Let go of the screen. The AI can never release a person's hold. */
   releaseControl(opts?: { as?: "agent" | "person"; note?: string }): Promise<ControlStatus> {
     return I.releaseControl(this.ctx.http, this.id, opts);
+  }
+  /** How the AI's input plays on this screen: "natural" or "presentation" while a person watches (LCU M2.7). */
+  setPace(pace: Pace): Promise<ControlStatus> {
+    return I.setPace(this.ctx.http, this.id, pace);
   }
   /**
    * Hand the screen to a person with a note ("Please sign in, then hand it back") and by default wait

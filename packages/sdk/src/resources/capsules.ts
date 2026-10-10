@@ -2,6 +2,8 @@
 // Every interaction method exists both here (capsules.exec(id, …)) and on the
 // Capsule handle (capsule.exec(…)); they share one implementation (interaction.ts).
 
+import { Browser } from "../browser.js";
+import { runActions, type RunActionsResult, type RunObserve, type RunStep } from "../actions.js";
 import type { ClientContext } from "../internal.js";
 import * as I from "../interaction.js";
 import { Capsule } from "../capsule.js";
@@ -26,12 +28,25 @@ import type {
   ClipboardResult,
   WindowListResult,
   OCRResult,
+  ScreenshotOptions,
+  ElementAction,
+  ElementActionOptions,
+  ElementActionResult,
+  WindowAction,
+  WindowActionResult,
+  OpenKind,
+  OpenResult,
+  WaitCondition,
+  WaitForOptions,
+  WaitForResult,
+  ScreenInfoResult,
   TraceResult,
   Snapshot,
   ControlStatus,
   ControlWaitResult,
   HandbackResult,
   ConsoleLink,
+  Pace,
 } from "../types.js";
 
 const enc = encodeURIComponent;
@@ -133,8 +148,17 @@ export class Capsules {
   setEnv(sessionId: string, vars: Record<string, string>, secret?: boolean): Promise<EnvSetResult> {
     return I.setEnv(this.ctx.http, sessionId, vars, secret);
   }
-  screenshot(sessionId: string): Promise<ScreenshotResult> {
-    return I.screenshot(this.ctx.http, sessionId);
+  /** The browser fast path of a desktop capsule: the agent's own Chrome, driven at page speed (LCU M2). */
+  browser(sessionId: string): Browser {
+    return new Browser(this.ctx.http, sessionId);
+  }
+  /** Several steps in one call, stopping at the first that fails (LCU M2.4). */
+  runActions(sessionId: string, steps: RunStep[], opts?: { observe?: RunObserve }): Promise<RunActionsResult> {
+    return runActions(this.ctx.http, sessionId, steps, opts);
+  }
+
+  screenshot(sessionId: string, opts?: ScreenshotOptions): Promise<ScreenshotResult> {
+    return I.screenshot(this.ctx.http, sessionId, opts);
   }
   click(
     sessionId: string,
@@ -214,6 +238,33 @@ export class Capsules {
   ): Promise<OCRResult> {
     return I.ocr(this.ctx.http, sessionId, region);
   }
+
+  // ---- the complete toolset (LCU M2.6) ----
+  elementAction(
+    sessionId: string,
+    action: ElementAction,
+    selector: ElementSelector,
+    opts?: ElementActionOptions,
+  ): Promise<ElementActionResult> {
+    return I.elementAction(this.ctx.http, sessionId, action, selector, opts);
+  }
+  windowAction(
+    sessionId: string,
+    action: WindowAction,
+    target: { id?: string; title?: string },
+    opts?: { x?: number; y?: number; w?: number; h?: number },
+  ): Promise<WindowActionResult> {
+    return I.windowAction(this.ctx.http, sessionId, action, target, opts);
+  }
+  open(sessionId: string, target: string, opts?: { kind?: OpenKind; waitMs?: number }): Promise<OpenResult> {
+    return I.open(this.ctx.http, sessionId, target, opts);
+  }
+  waitFor(sessionId: string, condition: WaitCondition, opts?: WaitForOptions): Promise<WaitForResult> {
+    return I.waitFor(this.ctx.http, sessionId, condition, opts);
+  }
+  screenInfo(sessionId: string): Promise<ScreenInfoResult> {
+    return I.screenInfo(this.ctx.http, sessionId);
+  }
   trace(sessionId: string): Promise<TraceResult> {
     return I.getTrace(this.ctx.http, sessionId);
   }
@@ -231,6 +282,10 @@ export class Capsules {
   /** Let go of the screen. The AI can never release a person's hold. */
   releaseControl(sessionId: string, opts?: { as?: "agent" | "person"; note?: string }): Promise<ControlStatus> {
     return I.releaseControl(this.ctx.http, sessionId, opts);
+  }
+  /** How the AI's input plays on the screen: "natural" or "presentation" while a person watches (LCU M2.7). */
+  setPace(sessionId: string, pace: Pace): Promise<ControlStatus> {
+    return I.setPace(this.ctx.http, sessionId, pace);
   }
   /**
    * Hand the screen to a person with a note, and by default wait (up to `timeoutMs`, 10 min) until they

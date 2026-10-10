@@ -2,6 +2,14 @@
 
 All four packages share a version.
 
+## 0.4.0 (2026-10-10)
+
+- The complete computer-use toolset, the same on Linux and Windows desktops. Act on an element without coordinates: `elementAction` sets a value, clears, toggles, expands or collapses, invokes, selects (an option by name inside a combo box or list), focuses or scrolls it into view, with a `setValue` shortcut. `windowAction` minimizes, maximizes, restores, closes, moves and resizes windows. `open` opens a URL, a file or an app by name and can wait for its window. `waitFor` waits in the capsule for an element to appear, go away, be enabled or show a text, for a window, or for the screen to settle, without holding up other calls. `screenInfo` reads the screen size, the pointer and the active window. Screenshots can be JPEG, scaled or a region (about 42 KiB to 10 KiB for a 1280x800 screen). MCP: `capsulate_element`, `capsulate_window`, `capsulate_open`, `capsulate_wait_for`, `capsulate_screen_info`. CLI: `cap element`, `cap window`, `cap open`, `cap wait-for`, `cap screen`, and `cap shot --format --scale --region`. ai-tools: the same five tools.
+- The browser fast path: the capsule's own Chrome driven through the page's structure at page speed, on the screen the person watches (`capsule.browser`, the thirteen `capsulate_browser_*` tools, `cap browser`).
+- Several steps in one call, stopping at the first that fails, with per-step expectations and a look at the end: `runActions`, `capsulate_run_actions`, `cap actions`.
+- A watched pace: `setPace("natural" | "presentation")` glides the pointer and slows typing for a person following along (`capsulate_control` action `pace`, `cap control pace`).
+- `CapsulateError.code` gives the machine code of a refused call (`not_found`, `unsupported`, `human_in_control`). The SDK package no longer ships its compiled tests.
+
 ## 0.3.0 (2026-10-09)
 
 - Live computer use. A person watches a desktop capsule's screen in any browser while an AI drives it, and either can take turns. SDK: `consoleLink`, `say`, `control`, `takeControl`, `releaseControl`, `handoff` (hands the screen to the person and waits until they hand it back, returning their note), `waitForHandback`, `waitControl`, `revokeConsoleLinks`; `CapsulateError.isHumanInControl`.

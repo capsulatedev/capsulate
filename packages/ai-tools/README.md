@@ -116,7 +116,7 @@ def run_in_sandbox(code: str) -> str:
 # LlamaIndex: from llama_index.core.tools import FunctionTool; FunctionTool.from_defaults(fn=run_in_sandbox)
 ```
 
-## Tools provided (23)
+## Tools provided (35)
 
 | Tool | What it does |
 | --- | --- |
@@ -125,13 +125,20 @@ def run_in_sandbox(code: str) -> str:
 | `capsulate_exec` | Run a command given as an argv array |
 | `capsulate_write_file` | Write a UTF-8 text file inside the capsule |
 | `capsulate_read_file` | Read a UTF-8 text file from the capsule |
-| `capsulate_screenshot` | Screenshot of a desktop capsule as base64 PNG with width and height |
+| `capsulate_screenshot` | Screenshot of a desktop capsule as base64 PNG (or JPEG, scaled, or a region) with width and height |
+| `capsulate_screen_info` | The screen's size, the pointer and the active window |
 | `capsulate_ui_tree` | The desktop's accessibility tree: real elements with role, name, value, bounds and states |
 | `capsulate_find_element` | Find elements by role, name, text or state; each match has a click-ready center |
 | `capsulate_click_element` | Find an element by role, name or text and click its center (optionally wait for it first) |
 | `capsulate_type_text` | Type literal text into the focused field |
 | `capsulate_press_keys` | Press a key or chord, for example `["ctrl", "c"]` or `["Return"]` |
 | `capsulate_wait_element` | Wait until a matching element appears or the timeout passes |
+| `capsulate_element` | Act on an element without coordinates: set its value, clear, toggle, expand or collapse, invoke, select an option by name, focus, scroll it into view |
+| `capsulate_window` | Minimize, maximize, restore, close, move or resize a window |
+| `capsulate_open` | Open a URL, a file or an app by name, and wait for its window |
+| `capsulate_wait_for` | Wait for an element to appear, go away, be enabled or show a text, for a window, or for the screen to settle |
+| `capsulate_run_actions` | Several steps in one call, back to back, stopping at the first that fails |
+| `capsulate_browser_open` / `_snapshot` / `_click` / `_fill` / `_wait` / `_text` | The capsule's own Chrome through the page's structure: open a page, read it as an outline with refs, click, fill, wait, read the text |
 | `capsulate_ocr` | Recognize on-screen text, full screen or a region |
 | `capsulate_clipboard` | Read the desktop clipboard, or set it when `text` is given |
 | `capsulate_checkpoint` | Snapshot the capsule's disk before a risky action; returns a `checkpointId` |
@@ -140,7 +147,7 @@ def run_in_sandbox(code: str) -> str:
 | `capsulate_console_link` | A signed, expiring URL that opens a desktop capsule's live screen in any browser, no login |
 | `capsulate_say` | One line of narration on the live console |
 | `capsulate_handoff` | Hand the screen to the person watching with a note; waits for the hand back and returns their note |
-| `capsulate_control` | Who drives the screen (free, agent, human); take or release it |
+| `capsulate_control` | Who drives the screen (free, agent, human); take or release it; set the pace for a person watching |
 | `capsulate_destroy_capsule` | Destroy a capsule and release its resources |
 | `capsulate_list_capsules` | List the team's active capsules |
 

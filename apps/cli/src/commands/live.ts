@@ -95,6 +95,17 @@ export function registerLive(program: Command): void {
     );
 
   control
+    .command("pace <id> <pace>")
+    .description("How the AI's input plays on the screen: fast, natural (glides, readable typing) or presentation")
+    .action((id: string, pace: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        if (!["fast", "natural", "presentation"].includes(pace)) throw new Error("pace must be fast, natural or presentation");
+        const st = await client.capsules.setPace(id, pace as "fast" | "natural" | "presentation");
+        result(st, () => `✓ pace ${st.pace ?? "fast"}`);
+      }),
+    );
+
+  control
     .command("wait <id>")
     .description("Wait until a person hands the screen back")
     .option("--timeout <seconds>", "Give up after this long (default 600)", (v) => parseInt(v, 10))
