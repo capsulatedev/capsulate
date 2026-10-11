@@ -1,6 +1,6 @@
 {
   "name": "@capsulate/ai-tools",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Capsulate tools for AI agent frameworks: drop-in sandbox tools (launch, run code, files, computer-use, checkpoint and rollback) for the Vercel AI SDK (v4 and v5), LangChain, LlamaIndex, and CrewAI.",
   "license": "MIT",
   "type": "module",
@@ -30,7 +30,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@capsulate/sdk": "^0.4.1",
+    "@capsulate/sdk": "^0.5.0",
     "zod": "^3.25.0"
   },
   "peerDependencies": {

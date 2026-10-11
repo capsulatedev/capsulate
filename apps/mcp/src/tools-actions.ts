@@ -137,7 +137,7 @@ export function runReport(r: RunActionsResult): Content[] {
 }
 
 export const ACTIONS_INSTRUCTIONS =
-  "When you know the next few steps (fill a form, click through a dialog, type then save), send them together with capsulate_run_actions: one call, the steps run back to back, the person watching sees one smooth motion, and the run stops at the first step that fails. Add expect to a step to wait for what should follow it, and observe 'screenshot' or 'browser_snapshot' to see the result in the same call.";
+  "When you know the next few steps (fill a form, click through a dialog, type then save), send them together with capsulate_run_actions: one call, the steps run back to back, the person watching sees one smooth motion, and the run stops at the first step that fails. Steps can mix commands and files with the screen (write_file, then open it to show it). Add expect to a step to wait for what should follow it, and observe 'screenshot' or 'browser_snapshot' to see the result in the same call.";
 
 export function registerActionTools(t: ToolKit) {
   const { server, cap, err } = t;
@@ -151,6 +151,7 @@ export function registerActionTools(t: ToolKit) {
         "screen: click {x, y, button?, count?}, type {text}, key {keys: ['ctrl+s']}, move {x, y}, scroll {x, y, dx, dy}, drag {x1, y1, x2, y2}, screenshot {format?, scale?, x?, y?, w?, h?}, ui_tree, find_element {selector}, wait_element {selector, timeoutMs}, clipboard, clipboard_set {text}, windows, window_focus {title}, ocr;",
         "without coordinates: element {action, selector, value?, window?} (action set_value, clear, toggle, expand, collapse, invoke, select, focus or scroll_into_view), window {action, title | id, x?, y?, w?, h?} (minimize, maximize, restore, close, move, resize), open {target, kind?, waitMs?}, wait_for {condition, selector?, window?, text?, timeoutMs?, stableMs?} (present, absent, enabled, text, window, screen_stable; a wait that ends unmet fails the step), screen (its size, the pointer, the active window);",
         "browser: browser_open {url}, browser_navigate {url}, browser_snapshot, browser_click {ref | text | selector}, browser_fill {ref, value, submit?}, browser_select {ref, option}, browser_press {keys}, browser_scroll {dy}, browser_wait {text | ref, state?}, browser_text, browser_eval {expression}, browser_screenshot;",
+        "commands and files: exec {cmd: [...], cwd?, timeoutSec?}, write_file {path, content}, read_file {path, maxBytes?} (a text file comes back as text); they also run while a person holds the screen;",
         "helpers: click_element {selector: {role?, name?, text?}, waitMs?} (find, waiting up to 5 s, then click its centre), say {text} (narrate for the person watching), pause {ms}.",
         "Any step can carry expect (a wait that must succeed after it: {selector, timeoutMs} after a screen step, {text | ref | selector, timeoutMs} after a browser step) and optional: true (may fail without stopping the run).",
         "observe returns a look at the end, also when the run stopped early: 'screenshot', 'ui_tree' or 'browser_snapshot'. At most 50 steps and 90 s per call. Never put passwords or other secrets in steps; hand those to the person (capsulate_handoff).",

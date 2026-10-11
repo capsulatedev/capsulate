@@ -414,12 +414,13 @@ export function registerLiveTools(t: ToolKit) {
     {
       title: "Who is driving the screen",
       description:
-        "Read or change who drives a desktop capsule's shared screen. state 'free' (nobody), 'agent' (you; every input renews a 45 s hold) or 'human' (a person; your input is refused until they hand it back). action 'status' (default) reads it, 'take' claims it for you, 'release' lets go when you finish so the person can use the screen, 'pace' sets how your input plays while a person watches: 'natural' (the pointer glides, typing is readable) or 'presentation' (slow enough to follow every step); 'fast' is the default.",
+        "Read or change who drives a desktop capsule's shared screen. state 'free' (nobody), 'agent' (you; every input renews a 45 s hold) or 'human' (a person; your input is refused until they hand it back). action 'status' (default) reads it, 'take' claims it for you, 'release' lets go when you finish so the person can use the screen, 'pace' sets how your input plays while a person watches: 'natural' (the pointer glides, typing is readable) or 'presentation' (slow enough to follow every step); 'fast' is the default. action 'visible' turns visible mode on or off (when the person asks to see every step). The status says visible: true while it is on: then do every step on the screen instead of through commands.",
       inputSchema: {
         sessionId: z.string(),
-        action: z.enum(["status", "take", "release", "pace"]).optional(),
+        action: z.enum(["status", "take", "release", "pace", "visible"]).optional(),
         note: z.string().optional().describe("Optional note shown on the console"),
         pace: z.enum(["fast", "natural", "presentation"]).optional().describe("For action 'pace'"),
+        visible: z.boolean().optional().describe("For action 'visible'"),
       },
     },
     async (a) => {
@@ -431,7 +432,9 @@ export function registerLiveTools(t: ToolKit) {
               ? await cap.capsules.releaseControl(a.sessionId, { note: a.note })
               : a.action === "pace"
                 ? await cap.capsules.setPace(a.sessionId, a.pace ?? "natural")
-                : await cap.capsules.control(a.sessionId);
+                : a.action === "visible"
+                  ? await cap.capsules.setVisible(a.sessionId, a.visible ?? true)
+                  : await cap.capsules.control(a.sessionId);
         return ok(st);
       } catch (e) {
         return err(e);
@@ -507,6 +510,13 @@ function handbackSummary(r: { handedBack: boolean; control: { state: string }; n
   }
   return { handedBack: false, state: r.control.state, next: "The person still holds the screen. Call capsulate_wait_for_handback to keep waiting." };
 }
+
+/** Guidance the MCP client shows the model first (Phase HYB): commands first, the screen when it matters. */
+export const WORK_INSTRUCTIONS = [
+  "Work through commands first: files, installs, settings, scripts and data go through capsulate_exec, capsulate_write_file, capsulate_read_file and capsulate_run_code. Each is one call and a fraction of a second, where the same work on the screen takes many steps and a look before each. Use the screen for what has no command route (an app's own window), for what the person must see, and for handoffs.",
+  "On Windows, run PowerShell: capsulate_exec with ['powershell.exe', '-Command', '<script>'] or capsulate_run_code with lang 'powershell'.",
+  "Check capsulate_control before a task on a desktop capsule: visible: true means the person wants to watch the whole task, so do every step on the screen. While someone watches and you work off the screen, say what you are doing with capsulate_say.",
+].join("\n");
 
 /** Guidance the MCP client shows the model: how to work on a screen a person watches. */
 export const LIVE_INSTRUCTIONS = [

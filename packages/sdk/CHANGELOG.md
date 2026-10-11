@@ -2,6 +2,12 @@
 
 `@capsulate/sdk`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.5.0 (2026-10-11)
+
+- Visible mode: `setVisible(visible)` on the `Capsule` handle and the `capsules` resource, and `ControlStatus.visible`. On, the person wants to watch the whole task, so the AI does every step on the screen; off (the default), it works through commands first and uses the screen when it matters.
+- `run(code, { lang: "powershell" })` runs a snippet in a Windows desktop's PowerShell, in the desktop session (about 0.3 s).
+- `runActions` takes command and file steps: `exec` (`{ cmd, cwd?, env?, timeoutSec? }`; its timeout is cut to what is left of the run), `write_file` (`{ path, content }` or `{ path, contentB64 }`) and `read_file` (`{ path, maxBytes? }`; a text file also comes back as `text`). They are not screen input, so they run while a person holds the screen. One run can write a file and then open it on the screen.
+
 ## 0.4.1 (2026-10-10)
 
 - `capsules.create` (and `launch`) sends an `Idempotency-Key` and asks again with it while the capsule is still being created (the API answers `202` with `status: "CREATING"`) or when a gateway or the network drops the request (502, 504, 520 to 524, no answer). It never asks again after a refusal such as no capacity, so it always gets the one capsule it launched. A cold-created Windows capsule takes minutes, longer than a gateway keeps a request open. `CreateCapsuleOptions.idempotencyKey` picks the key (to resume a launch from another process), `createTimeoutMs` changes the 15 minute limit; after it, the error names the key.

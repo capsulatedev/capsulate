@@ -2,6 +2,12 @@
 
 `@capsulate/mcp`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.5.0 (2026-10-11)
+
+- The server's instructions open with how to work: commands first (files, installs, settings, scripts and data through `capsulate_exec`, `capsulate_write_file`, `capsulate_read_file` and `capsulate_run_code`), the screen for an app's own window, for what the person must see and for handoffs, PowerShell on Windows, and visible mode.
+- `capsulate_control` action `visible` turns visible mode on or off; the status says `visible: true` while the person wants to watch every step.
+- `capsulate_run_code` takes `lang: "powershell"`; `capsulate_run_actions` takes `exec`, `write_file` and `read_file` steps; the exec, file and run_code descriptions say when they are the faster route.
+
 ## 0.4.1 (2026-10-10)
 
 - `capsulate_launch` waits for a long launch the same way (the SDK 0.4.1 asks again with the same key), so a cold Windows desktop no longer fails at the gateway's 100 s.

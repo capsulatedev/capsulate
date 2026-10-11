@@ -2,6 +2,12 @@
 
 `@capsulate/cli` (the `cap` command). The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.5.0 (2026-10-11)
+
+- `cap control visible <id> on|off`: visible mode, the AI is asked to do every step on the screen; off (the default), commands first.
+- `cap run <id> <code> --lang powershell` runs a snippet in a Windows desktop's PowerShell.
+- `cap actions` takes `exec`, `write_file` and `read_file` steps between screen steps.
+
 ## 0.4.1 (2026-10-10)
 
 - `cap launch` waits for a long launch: a Windows desktop that is cold-created takes minutes, and the SDK 0.4.1 under the CLI keeps asking for it with the same key instead of failing at the gateway's 100 s.

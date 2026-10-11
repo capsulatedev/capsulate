@@ -635,6 +635,11 @@ export interface ControlStatus {
   version: number;
   /** How the AI's input plays on this screen: natural or presentation; absent means fast. */
   pace?: Pace;
+  /**
+   * Visible mode (Phase HYB): the person wants to watch the whole task, so do every step on the screen. Absent (off),
+   * work through commands first (files, installs, settings, scripts, data) and use the screen when it matters.
+   */
+  visible?: boolean;
 }
 
 /** Result of one long-poll on the control state. */

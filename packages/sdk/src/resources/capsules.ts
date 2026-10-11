@@ -132,7 +132,7 @@ export class Capsules {
   run(
     sessionId: string,
     code: string,
-    opts?: { lang?: "python" | "node" | "bash" | "sh"; timeoutSec?: number; cwd?: string },
+    opts?: { lang?: "python" | "node" | "bash" | "sh" | "powershell"; timeoutSec?: number; cwd?: string },
   ): Promise<ExecResult> {
     return I.run(this.ctx.http, sessionId, code, opts);
   }
@@ -291,6 +291,10 @@ export class Capsules {
   /** How the AI's input plays on the screen: "natural" or "presentation" while a person watches (LCU M2.7). */
   setPace(sessionId: string, pace: Pace): Promise<ControlStatus> {
     return I.setPace(this.ctx.http, sessionId, pace);
+  }
+  /** Visible mode (Phase HYB): on, do every step on the screen (the person wants to watch); off, commands first. */
+  setVisible(sessionId: string, visible: boolean): Promise<ControlStatus> {
+    return I.setVisible(this.ctx.http, sessionId, visible);
   }
   /**
    * Hand the screen to a person with a note, and by default wait (up to `timeoutMs`, 10 min) until they

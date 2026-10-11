@@ -9,6 +9,13 @@
 //     { do: "type", text: "notes.txt" },
 //     { do: "key", keys: ["enter"], expect: { selector: { name: "Saved" }, timeoutMs: 3000 } },
 //   ], { observe: "screenshot" });
+//
+// Commands and files mix in (Phase HYB): write the file through the API, then show it on the screen.
+//
+//   await capsule.runActions([
+//     { do: "write_file", path: "/home/capsulate/notes.txt", content: "1. Follow up\n" },
+//     { do: "open", target: "/home/capsulate/notes.txt", waitMs: 10000 },
+//   ], { observe: "screenshot" });
 
 import type { Http } from "./http.js";
 
@@ -24,6 +31,10 @@ const enc = encodeURIComponent;
  * - the browser fast path as browser_<verb>: browser_open, browser_navigate, browser_snapshot, browser_click,
  *   browser_fill, browser_select, browser_press, browser_scroll, browser_wait, browser_text, browser_eval,
  *   browser_screenshot, browser_tabs;
+ * - commands and files (Phase HYB): exec (the exec body: {cmd, cwd?, env?, timeoutSec?}; its timeout is cut to
+ *   what is left of the run), write_file ({path, content} for text or {path, contentB64}) and read_file
+ *   ({path, maxBytes?}; a text file also comes back as `text`). They are not screen input, so they run while a
+ *   person holds the screen;
  * - run helpers: click_element ({selector, waitMs?, button?, count?}: find, waiting up to 5 s, then click the
  *   centre), say ({text}: one line of narration for the person watching) and pause ({ms}, at most 10000).
  */

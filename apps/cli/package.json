@@ -1,11 +1,11 @@
 {
   "name": "@capsulate/cli",
-  "version": "0.4.1",
-  "description": "The Capsulate CLI \u2014 launch and drive cloud sandboxes (capsules) from your terminal. Full parity with the dashboard.",
+  "version": "0.5.0",
+  "description": "The Capsulate CLI: launch and drive cloud sandboxes (capsules) from your terminal, with full parity with the dashboard.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "cap": "./dist/index.js"
+    "cap": "dist/index.js"
   },
   "files": [
     "dist",
@@ -26,7 +26,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@capsulate/sdk": "^0.4.1",
+    "@capsulate/sdk": "^0.5.0",
     "commander": "^12.1.0"
   },
   "keywords": [

@@ -37,6 +37,17 @@ async function orNotDone<T>(p: Promise<T>): Promise<T | { ok: false; error: stri
   }
 }
 
+/**
+ * How to work in a capsule (Phase HYB): put it in your agent's system prompt next to the tools. The same guidance the
+ * Capsulate MCP server gives its clients.
+ */
+export const CAPSULATE_GUIDANCE = [
+  "Work through commands first: files, installs, settings, scripts and data go through capsulate_exec, capsulate_write_file, capsulate_read_file and capsulate_run_code (one call, a fraction of a second). Use the screen for what has no command route (an app's own window), for what the person must see, and for handoffs.",
+  "On Windows, run PowerShell: capsulate_exec with ['powershell.exe', '-Command', '<script>'] or capsulate_run_code with lang 'powershell'.",
+  "Read capsulate_control first: when visible is true, the person wants to watch the whole task, so do every step on the screen.",
+  "While a person watches and you work off the screen, say what you are doing with capsulate_say.",
+].join("\n");
+
 /** Build the Capsulate agent tool specs bound to a client (or client options). */
 export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): ToolSpec[] {
   const cap = clientOrOpts instanceof Capsulate ? clientOrOpts : new Capsulate(clientOrOpts);
@@ -57,11 +68,12 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     },
     {
       name: "capsulate_run_code",
-      description: "Run a snippet of code (python/node/bash) inside a capsule. Returns stdout, stderr, exit code.",
+      description:
+        "Run a snippet of code inside a capsule (python, node or bash on Linux; powershell on Windows, about 0.3 s). Returns stdout, stderr, exit code. Faster than doing the same on the screen.",
       parameters: z.object({
         sessionId: z.string(),
         code: z.string(),
-        lang: z.enum(["python", "node", "bash"]).optional(),
+        lang: z.enum(["python", "node", "bash", "powershell"]).optional(),
       }),
       execute: async ({ sessionId, code, lang }) => {
         const r = await cap.capsules.run(sessionId, code, { lang: lang ?? "bash" });
@@ -71,19 +83,21 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     {
       name: "capsulate_exec",
       description:
-        "Run a shell command (as an argv array) inside a capsule. Returns stdout, stderr, exit code. On a Linux desktop capsule it runs as the desktop user 'capsulate' (home folder, DISPLAY :1); prefix 'sudo' for root.",
+        "Run a command (as an argv array) inside a capsule. Returns stdout, stderr, exit code. Commands first: files, installs, settings, scripts and data are one call here, a fraction of a second, where the screen takes many steps. On a Linux desktop capsule it runs as the desktop user 'capsulate' (home folder, DISPLAY :1); prefix 'sudo' for root. On Windows pass ['powershell.exe', '-Command', '<script>']: it runs in the desktop session's PowerShell, about 0.3 s. It works while a person holds the screen.",
       parameters: z.object({
         sessionId: z.string(),
         command: z.array(z.string()).describe("argv array, e.g. ['ls','-la']"),
+        cwd: z.string().optional().describe("Working directory"),
       }),
-      execute: async ({ sessionId, command }) => {
-        const r = await cap.capsules.exec(sessionId, command);
+      execute: async ({ sessionId, command, cwd }) => {
+        const r = await cap.capsules.exec(sessionId, command, cwd ? { cwd } : {});
         return { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode };
       },
     },
     {
       name: "capsulate_write_file",
-      description: "Write a UTF-8 text file inside a capsule.",
+      description:
+        "Write a UTF-8 text file inside a capsule (the folder is created). One call, far faster than typing it into an editor on the screen; open it afterwards with capsulate_open if the person should see it.",
       parameters: z.object({ sessionId: z.string(), path: z.string(), content: z.string() }),
       execute: async ({ sessionId, path, content }) => {
         await cap.capsules.writeFile(sessionId, path, content);
@@ -92,7 +106,7 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     },
     {
       name: "capsulate_read_file",
-      description: "Read a UTF-8 text file from inside a capsule.",
+      description: "Read a UTF-8 text file from inside a capsule. One call, no screen needed.",
       parameters: z.object({ sessionId: z.string(), path: z.string() }),
       execute: async ({ sessionId, path }) => {
         return { content: await cap.capsules.readFileText(sessionId, path) };
@@ -317,16 +331,18 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     {
       name: "capsulate_control",
       description:
-        "Read or change who drives a desktop capsule's screen: 'free', 'agent' (you) or 'human' (a person; your input is refused until they hand it back). action 'status' (default), 'take', 'release' when you finish, or 'pace' to set how your input plays while a person watches: 'natural' or 'presentation' ('fast' is the default).",
+        "Read or change who drives a desktop capsule's screen: 'free', 'agent' (you) or 'human' (a person; your input is refused until they hand it back). action 'status' (default), 'take', 'release' when you finish, 'pace' to set how your input plays while a person watches: 'natural' or 'presentation' ('fast' is the default), or 'visible' to turn visible mode on or off. The status says visible: true when the person wants to watch the whole task: then do every step on the screen instead of through commands.",
       parameters: z.object({
         sessionId: z.string(),
-        action: z.enum(["status", "take", "release", "pace"]).optional(),
+        action: z.enum(["status", "take", "release", "pace", "visible"]).optional(),
         pace: z.enum(["fast", "natural", "presentation"]).optional(),
+        visible: z.boolean().optional().describe("For action 'visible'"),
       }),
-      execute: async ({ sessionId, action, pace }) => {
+      execute: async ({ sessionId, action, pace, visible }) => {
         if (action === "take") return cap.capsules.takeControl(sessionId);
         if (action === "release") return cap.capsules.releaseControl(sessionId);
         if (action === "pace") return cap.capsules.setPace(sessionId, pace ?? "natural");
+        if (action === "visible") return cap.capsules.setVisible(sessionId, visible ?? true);
         return cap.capsules.control(sessionId);
       },
     },
@@ -503,6 +519,7 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
         "Each step is {do: verb, ...fields}: click {x, y}, type {text}, key {keys}, move, scroll, drag, screenshot, ui_tree, find_element {selector}, wait_element {selector, timeoutMs}, clipboard, clipboard_set {text}, windows, window_focus {title}, ocr; " +
         "element {action, selector, value?} (set_value, toggle, expand, invoke, select, ...), window {action, title | id} (minimize, maximize, move, resize, close, ...), open {target, waitMs?}, wait_for {condition, selector?, text?, window?, timeoutMs?} (a wait that ends unmet fails the step), screen; " +
         "the browser as browser_<verb> (browser_navigate {url}, browser_click {ref | text}, browser_fill {ref, value}, browser_wait {text}, browser_snapshot, ...); " +
+        "commands and files: exec {cmd: [...], cwd?}, write_file {path, content}, read_file {path} (a text file comes back as text); " +
         "click_element {selector: {role?, name?, text?}} (find, waiting up to 5 s, then click), say {text}, pause {ms}. " +
         "expect on a step is a wait that must succeed after it; optional: true lets a step fail. observe returns a look at the end: 'screenshot', 'ui_tree' or 'browser_snapshot'.",
       parameters: z.object({

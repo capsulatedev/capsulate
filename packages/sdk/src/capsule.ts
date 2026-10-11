@@ -94,7 +94,7 @@ export class Capsule {
   }
   run(
     code: string,
-    opts?: { lang?: "python" | "node" | "bash" | "sh"; timeoutSec?: number; cwd?: string },
+    opts?: { lang?: "python" | "node" | "bash" | "sh" | "powershell"; timeoutSec?: number; cwd?: string },
   ): Promise<ExecResult> {
     return I.run(this.ctx.http, this.id, code, opts);
   }
@@ -236,6 +236,10 @@ export class Capsule {
   /** How the AI's input plays on this screen: "natural" or "presentation" while a person watches (LCU M2.7). */
   setPace(pace: Pace): Promise<ControlStatus> {
     return I.setPace(this.ctx.http, this.id, pace);
+  }
+  /** Visible mode (Phase HYB): on, do every step on the screen (the person wants to watch); off, commands first. */
+  setVisible(visible: boolean): Promise<ControlStatus> {
+    return I.setVisible(this.ctx.http, this.id, visible);
   }
   /**
    * Hand the screen to a person with a note ("Please sign in, then hand it back") and by default wait

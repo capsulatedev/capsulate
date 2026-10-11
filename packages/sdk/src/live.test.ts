@@ -103,3 +103,27 @@ test("consoleLink, say and control calls hit the documented routes", async () =>
   assert.deepEqual(calls[0]!.body, { mode: "view", ttlSec: 600 });
   assert.deepEqual(calls[1]!.body, { text: "Opening the browser" });
 });
+
+// Phase HYB: visible mode, and run with PowerShell (Windows).
+test("setVisible posts the switch and returns the control state", async () => {
+  const { cap, calls } = fakeApi((c) => {
+    if (c.path === "/sessions/sess-1/control/visible") return { body: ctl("free", 5, { visible: (c.body as any).visible }) };
+    return { status: 404, body: { error: "unexpected " + c.path } };
+  });
+  const on = await cap.capsules.setVisible("sess-1", true);
+  assert.equal(on.visible, true);
+  const [call] = calls;
+  assert.equal(call?.method, "POST");
+  assert.equal(call?.path, "/sessions/sess-1/control/visible");
+  assert.deepEqual(call?.body, { visible: true });
+});
+
+test("run with powershell sends a PowerShell -Command argv (the agent's fast route on Windows)", async () => {
+  const { cap, calls } = fakeApi(() => ({ body: { exitCode: 0, stdout: "ok", stderr: "", timedOut: false, durationMs: 300 } }));
+  await cap.capsules.run("sess-1", "Get-ChildItem C:\\Users\\Public", { lang: "powershell", cwd: "C:\\Users\\Public" });
+  const [call] = calls;
+  const body = call?.body as { cmd: string[]; cwd: string };
+  assert.equal(call?.path, "/sessions/sess-1/exec");
+  assert.deepEqual(body.cmd, ["powershell.exe", "-NoProfile", "-Command", "Get-ChildItem C:\\Users\\Public"]);
+  assert.equal(body.cwd, "C:\\Users\\Public");
+});

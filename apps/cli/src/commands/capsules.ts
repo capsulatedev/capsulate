@@ -144,7 +144,7 @@ export function registerCapsules(program: Command): void {
   program
     .command("run <id> <code>")
     .description("Run a snippet of code in a capsule")
-    .option("-l, --lang <lang>", "python | node | bash", "bash")
+    .option("-l, --lang <lang>", "python | node | bash | powershell (Windows)", "bash")
     .option("--timeout <sec>", "Timeout in seconds", (v) => parseInt(v, 10))
     .action((id: string, code: string, _o, command: Command) =>
       withClient(command, async (client) => {

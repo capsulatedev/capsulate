@@ -2,6 +2,13 @@
 
 All four packages share a version.
 
+## 0.5.0 (2026-10-11)
+
+- Commands first, the screen when it matters. The MCP server's instructions now open with how to work: files, installs, settings, scripts and data through commands (one call, a fraction of a second), the screen for an app's own window, for what the person must see and for handoffs, and PowerShell on Windows. `@capsulate/ai-tools` exports the same guidance as `CAPSULATE_GUIDANCE` for your agent's system prompt. Measured on a Windows desktop: three files written and one shown on the screen took 0.7 s in one call, against 13 s and 21 calls through the editor.
+- Visible mode: when the person wants to watch the whole task, the AI does every step on the screen. `setVisible` and `ControlStatus.visible` in the SDK, `capsulate_control` action `visible`, `cap control visible <id> on|off`.
+- One run mixes commands and files with the screen: `runActions` takes `exec`, `write_file` and `read_file` steps (a text file comes back as `text`), so one call can write a file and open it. They are not screen input, so they run while a person holds the screen.
+- PowerShell snippets: `run(code, { lang: "powershell" })`, `capsulate_run_code` with `lang: "powershell"`, `cap run --lang powershell`. The ai-tools `capsulate_exec` takes `cwd`.
+
 ## 0.4.1 (2026-10-10)
 
 - Launches that wait: the SDK's `capsules.create` sends an `Idempotency-Key` and asks again with it while the capsule is still being created (the API answers `202` with `status: "CREATING"`) or when a gateway or the network drops the request, never after a refusal such as no capacity. A cold-created Windows desktop takes minutes, longer than a gateway keeps a request open; `cap launch`, `capsulate_launch` and the ai-tools launch now wait for it. `idempotencyKey` and `createTimeoutMs` on the create options; `rollback` restores the same way.

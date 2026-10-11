@@ -14,7 +14,7 @@ export interface GlobalOpts {
   json?: boolean;
 }
 
-const VERSION = "0.4.1";
+const VERSION = "0.5.0";
 
 export interface Resolved {
   client: Capsulate;

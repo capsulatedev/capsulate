@@ -18,7 +18,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Capsulate, CapsulateError, type ScreenshotResult } from "@capsulate/sdk";
-import { registerLiveTools, LIVE_INSTRUCTIONS } from "./tools-live.js";
+import { registerLiveTools, LIVE_INSTRUCTIONS, WORK_INSTRUCTIONS } from "./tools-live.js";
 import { registerBrowserTools, BROWSER_INSTRUCTIONS } from "./tools-browser.js";
 import { registerActionTools, ACTIONS_INSTRUCTIONS } from "./tools-actions.js";
 
@@ -51,10 +51,11 @@ const cap = new Capsulate({
   apiKey,
   baseUrl: process.env.CAPSULATE_BASE_URL,
   teamId: process.env.CAPSULATE_TEAM_ID,
-  userAgent: "capsulate-mcp/0.4.1",
+  userAgent: "capsulate-mcp/0.5.0",
 });
 
-const server = new McpServer({ name: "capsulate", version: "0.4.1" }, { instructions: `${LIVE_INSTRUCTIONS}
+const server = new McpServer({ name: "capsulate", version: "0.5.0" }, { instructions: `${WORK_INSTRUCTIONS}
+${LIVE_INSTRUCTIONS}
 ${BROWSER_INSTRUCTIONS}
 ${ACTIONS_INSTRUCTIONS}` });
 
@@ -212,7 +213,7 @@ server.registerTool(
   {
     title: "Run a command",
     description:
-      "Execute a command inside a capsule and return stdout, stderr, and the exit code. Provide the command as an argv array, e.g. ['ls','-la','/workspace']. On a Linux desktop capsule it runs as the desktop user 'capsulate' (home folder, DISPLAY :1, so apps open on the shared screen); prefix 'sudo' for root.",
+      "Execute a command inside a capsule and return stdout, stderr, and the exit code. Provide the command as an argv array, e.g. ['ls','-la','/workspace']. Commands first: files, installs, settings, scripts and data are one call here, a fraction of a second, where the screen takes many steps. On a Linux desktop capsule it runs as the desktop user 'capsulate' (home folder, DISPLAY :1, so apps open on the shared screen); prefix 'sudo' for root. On Windows pass ['powershell.exe', '-Command', '<script>']: it runs in the desktop session's PowerShell, about 0.3 s. It works while a person holds the screen.",
     inputSchema: {
       sessionId: z.string(),
       command: z.array(z.string()).describe("Command as an argv array"),
@@ -237,11 +238,12 @@ server.registerTool(
   "capsulate_run_code",
   {
     title: "Run code",
-    description: "Run a snippet of code inside a capsule (python, node, or bash). Returns stdout/stderr/exit.",
+    description:
+      "Run a snippet of code inside a capsule: python, node or bash on Linux, powershell on Windows (about 0.3 s). Returns stdout/stderr/exit. Faster than doing the same on the screen.",
     inputSchema: {
       sessionId: z.string(),
       code: z.string(),
-      lang: z.enum(["python", "node", "bash"]).optional(),
+      lang: z.enum(["python", "node", "bash", "powershell"]).optional(),
       timeoutSec: z.number().optional(),
     },
   },
@@ -262,7 +264,8 @@ server.registerTool(
   "capsulate_write_file",
   {
     title: "Write a file",
-    description: "Write a UTF-8 text file inside a capsule.",
+    description:
+      "Write a UTF-8 text file inside a capsule (the folder is created). One call, far faster than typing it into an editor on the screen; open it afterwards with capsulate_open if the person should see it.",
     inputSchema: { sessionId: z.string(), path: z.string(), content: z.string() },
   },
   async (args) => {
@@ -279,7 +282,7 @@ server.registerTool(
   "capsulate_read_file",
   {
     title: "Read a file",
-    description: "Read a UTF-8 text file from inside a capsule.",
+    description: "Read a UTF-8 text file from inside a capsule. One call, no screen needed.",
     inputSchema: { sessionId: z.string(), path: z.string() },
   },
   async (args) => {

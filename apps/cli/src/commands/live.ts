@@ -106,6 +106,17 @@ export function registerLive(program: Command): void {
     );
 
   control
+    .command("visible <id> <on|off>")
+    .description("Visible mode: on, the AI is asked to do every step on the screen; off (the default), commands first")
+    .action((id: string, mode: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        if (mode !== "on" && mode !== "off") throw new Error("visible takes on or off");
+        const st = await client.capsules.setVisible(id, mode === "on");
+        result(st, () => `✓ visible ${st.visible ? "on: every step on the screen" : "off: commands first"}`);
+      }),
+    );
+
+  control
     .command("wait <id>")
     .description("Wait until a person hands the screen back")
     .option("--timeout <seconds>", "Give up after this long (default 600)", (v) => parseInt(v, 10))

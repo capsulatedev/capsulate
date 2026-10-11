@@ -52,12 +52,15 @@ export async function exec(
   return http.post<ExecResult>(`/sessions/${enc(sessionId)}/exec`, { sessionId, cmd, ...opts });
 }
 
-/** Run a snippet of code in the capsule. Convenience over exec for common languages. */
+/**
+ * Run a snippet of code in the capsule. Convenience over exec for common languages. On Windows use "powershell": it
+ * runs in the desktop session's PowerShell, about 0.3 s (bash and python3 are Linux commands).
+ */
 export async function run(
   http: Http,
   sessionId: string,
   code: string,
-  opts: { lang?: "python" | "node" | "bash" | "sh"; timeoutSec?: number; cwd?: string } = {},
+  opts: { lang?: "python" | "node" | "bash" | "sh" | "powershell"; timeoutSec?: number; cwd?: string } = {},
 ): Promise<ExecResult> {
   const lang = opts.lang ?? "bash";
   let cmd: string[];
@@ -67,6 +70,9 @@ export async function run(
       break;
     case "node":
       cmd = ["node", "-e", code];
+      break;
+    case "powershell":
+      cmd = ["powershell.exe", "-NoProfile", "-Command", code];
       break;
     case "bash":
     case "sh":
@@ -400,6 +406,11 @@ export async function releaseControl(
 /** Set how the AI's input plays on the screen (LCU M2.7): "natural" or "presentation" for a person watching. */
 export async function setPace(http: Http, sessionId: string, pace: Pace): Promise<ControlStatus> {
   return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/pace`, { pace });
+}
+
+/** Visible mode (Phase HYB): on, the AI is asked to do every step on the screen; off, commands first. */
+export async function setVisible(http: Http, sessionId: string, visible: boolean): Promise<ControlStatus> {
+  return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/visible`, { visible });
 }
 
 /** Hand the screen to a person with a note saying what you need ("Please sign in, then hand it back"). */
