@@ -172,6 +172,18 @@ export interface ScreenshotAfterOptions {
 
 export type MouseButton = "left" | "right" | "middle";
 
+/**
+ * A drag along a path (decision 55): pressed at the first point, released at the last. `smooth` draws a curve through
+ * the points instead of straight segments, `closed` returns to the first point (eight points on a circle make a
+ * circle), `stepMs` is the pause between two points (8 ms by default, slower on a watched pace).
+ */
+export interface StrokeOptions extends ScreenshotAfterOptions {
+  smooth?: boolean;
+  closed?: boolean;
+  stepMs?: number;
+  button?: MouseButton;
+}
+
 // ── deep computer-use (Phase CU): structured introspection + rich primitives ──
 
 /** One accessible UI element with on-screen bounds + a click-ready center (cx,cy). */
@@ -618,6 +630,13 @@ export type ControlState = "free" | "agent" | "human";
  *  target, type at a readable rate and leave a beat between the steps of a run; fast (the default) is machine speed. */
 export type Pace = "fast" | "natural" | "presentation";
 
+/**
+ * How carefully the AI checks its work on a screen (decision 55): quick (plan the whole job, run it in as few runs as
+ * possible, look only to learn something or when a step failed), balanced (the default) or careful (look after every
+ * step).
+ */
+export type Care = "quick" | "balanced" | "careful";
+
 export interface ControlStatus {
   sessionId: string;
   /** free: nobody holds it. agent: the AI is acting (each input renews a 45 s lease). human: a person holds it. */
@@ -640,6 +659,8 @@ export interface ControlStatus {
    * work through commands first (files, installs, settings, scripts, data) and use the screen when it matters.
    */
   visible?: boolean;
+  /** How carefully the AI checks its work (decision 55): quick or careful; absent means balanced. */
+  care?: Care;
 }
 
 /** Result of one long-poll on the control state. */

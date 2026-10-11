@@ -22,6 +22,8 @@ import type {
   InputResult,
   ScreenshotAfterOptions,
   MouseButton,
+  StrokeOptions,
+  Care,
   UITreeResult,
   ElementSelector,
   FindElementResult,
@@ -186,6 +188,10 @@ export class Capsules {
   ): Promise<InputResult> {
     return I.scroll(this.ctx.http, sessionId, x, y, dx, dy, opts);
   }
+  /** Drag along a path of [x, y] points (decision 55): curves, circles, any shape; see StrokeOptions. */
+  stroke(sessionId: string, points: Array<[number, number]>, opts?: StrokeOptions): Promise<InputResult> {
+    return I.stroke(this.ctx.http, sessionId, points, opts);
+  }
   drag(
     sessionId: string,
     x1: number,
@@ -295,6 +301,10 @@ export class Capsules {
   /** Visible mode (Phase HYB): on, do every step on the screen (the person wants to watch); off, commands first. */
   setVisible(sessionId: string, visible: boolean): Promise<ControlStatus> {
     return I.setVisible(this.ctx.http, sessionId, visible);
+  }
+  /** How carefully the AI checks its work (decision 55): quick, balanced (the default) or careful. */
+  setCare(sessionId: string, care: Care): Promise<ControlStatus> {
+    return I.setCare(this.ctx.http, sessionId, care);
   }
   /**
    * Hand the screen to a person with a note, and by default wait (up to `timeoutMs`, 10 min) until they

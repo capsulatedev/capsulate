@@ -45,6 +45,7 @@ export const CAPSULATE_GUIDANCE = [
   "Work through commands first: files, installs, settings, scripts and data go through capsulate_exec, capsulate_write_file, capsulate_read_file and capsulate_run_code (one call, a fraction of a second). Use the screen for what has no command route (an app's own window), for what the person must see, and for handoffs.",
   "On Windows, run PowerShell: capsulate_exec with ['powershell.exe', '-Command', '<script>'] or capsulate_run_code with lang 'powershell'.",
   "Read capsulate_control first: when visible is true, the person wants to watch the whole task, so do every step on the screen.",
+  "Its care says how carefully to check your work. care 'quick': plan the whole job, then send it in as few capsulate_run_actions calls as you can (up to 200 steps each) without looking between them; look at the screen only to learn what you cannot know in advance or when a step failed. care 'careful': look after every step and fix a mistake before going on. No care (balanced): look when a step matters.",
   "While a person watches and you work off the screen, say what you are doing with capsulate_say.",
 ].join("\n");
 
@@ -331,19 +332,45 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     {
       name: "capsulate_control",
       description:
-        "Read or change who drives a desktop capsule's screen: 'free', 'agent' (you) or 'human' (a person; your input is refused until they hand it back). action 'status' (default), 'take', 'release' when you finish, 'pace' to set how your input plays while a person watches: 'natural' or 'presentation' ('fast' is the default), or 'visible' to turn visible mode on or off. The status says visible: true when the person wants to watch the whole task: then do every step on the screen instead of through commands.",
+        "Read or change who drives a desktop capsule's screen: 'free', 'agent' (you) or 'human' (a person; your input is refused until they hand it back). action 'status' (default), 'take', 'release' when you finish, 'pace' to set how your input plays while a person watches: 'natural' or 'presentation' ('fast' is the default), 'visible' to turn visible mode on or off, or 'care' to set how carefully you check your work ('quick', 'balanced', 'careful'). The status says visible: true when the person wants to watch the whole task: then do every step on the screen instead of through commands; it says care when it is not balanced.",
       parameters: z.object({
         sessionId: z.string(),
-        action: z.enum(["status", "take", "release", "pace", "visible"]).optional(),
+        action: z.enum(["status", "take", "release", "pace", "visible", "care"]).optional(),
         pace: z.enum(["fast", "natural", "presentation"]).optional(),
         visible: z.boolean().optional().describe("For action 'visible'"),
+        care: z.enum(["quick", "balanced", "careful"]).optional().describe("For action 'care'"),
       }),
-      execute: async ({ sessionId, action, pace, visible }) => {
+      execute: async ({ sessionId, action, pace, visible, care }) => {
         if (action === "take") return cap.capsules.takeControl(sessionId);
         if (action === "release") return cap.capsules.releaseControl(sessionId);
         if (action === "pace") return cap.capsules.setPace(sessionId, pace ?? "natural");
         if (action === "visible") return cap.capsules.setVisible(sessionId, visible ?? true);
+        if (action === "care") return cap.capsules.setCare(sessionId, care ?? "balanced");
         return cap.capsules.control(sessionId);
+      },
+    },
+    {
+      name: "capsulate_drag",
+      description:
+        "Press at (x1, y1), drag to (x2, y2) and release on a desktop capsule's screen; or draw along a path of [x, y] points (at most 1000) for curves, circles and any shape a hand draws. smooth draws a curve through the points, closed returns to the first point (eight points on a circle make a circle), stepMs is the pause between points (8 ms by default). The button is honoured.",
+      parameters: z.object({
+        sessionId: z.string(),
+        x1: z.number().optional(),
+        y1: z.number().optional(),
+        x2: z.number().optional(),
+        y2: z.number().optional(),
+        path: z.array(z.tuple([z.number(), z.number()])).min(2).max(1000).optional(),
+        smooth: z.boolean().optional(),
+        closed: z.boolean().optional(),
+        stepMs: z.number().min(0).max(100).optional(),
+        button: z.enum(["left", "right", "middle"]).optional(),
+      }),
+      execute: async ({ sessionId, x1, y1, x2, y2, path, smooth, closed, stepMs, button }) => {
+        if (path) return cap.capsules.stroke(sessionId, path as Array<[number, number]>, { smooth, closed, stepMs, button });
+        if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) {
+          return { ok: false, error: "bad_request", message: "Give x1, y1, x2 and y2, or a path of [x, y] points." };
+        }
+        return cap.capsules.drag(sessionId, x1, y1, x2, y2, button);
       },
     },
     {
@@ -524,7 +551,7 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
         "expect on a step is a wait that must succeed after it; optional: true lets a step fail. observe returns a look at the end: 'screenshot', 'ui_tree' or 'browser_snapshot'.",
       parameters: z.object({
         sessionId: z.string(),
-        steps: z.array(z.object({ do: z.string() }).passthrough()).min(1).max(50),
+        steps: z.array(z.object({ do: z.string() }).passthrough()).min(1).max(200),
         observe: z.enum(["none", "screenshot", "ui_tree", "browser_snapshot"]).optional(),
       }),
       execute: async ({ sessionId, steps, observe }) => cap.capsules.runActions(sessionId, steps, { observe }),

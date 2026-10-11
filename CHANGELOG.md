@@ -2,6 +2,12 @@
 
 All four packages share a version.
 
+## 0.6.0 (2026-10-12)
+
+- Quick or careful: how carefully the AI checks its work is a setting on a capsule's screen. `quick` plans the whole job and runs it in as few runs as possible, looking at the screen only when it needs to; `careful` checks after every step; `balanced` is the default. `setCare` and `ControlStatus.care` in the SDK, `capsulate_control` action `care` (the MCP server's instructions say what each means), `cap control care <id> quick`.
+- Drawing along a path: a drag can follow a list of `[x, y]` points, for curves, circles, signatures and any shape a hand draws. `smooth` draws a curve through the points, `closed` returns to the first one, `stepMs` is the pause between points. `stroke()` in the SDK, `capsulate_drag` with a `path` (and a new ai-tools `capsulate_drag`), `cap stroke <id> x,y x,y ...`.
+- A run takes up to 200 steps (was 50).
+
 ## 0.5.0 (2026-10-11)
 
 - Commands first, the screen when it matters. The MCP server's instructions now open with how to work: files, installs, settings, scripts and data through commands (one call, a fraction of a second), the screen for an app's own window, for what the person must see and for handoffs, and PowerShell on Windows. `@capsulate/ai-tools` exports the same guidance as `CAPSULATE_GUIDANCE` for your agent's system prompt. Measured on a Windows desktop: three files written and one shown on the screen took 0.7 s in one call, against 13 s and 21 calls through the editor.

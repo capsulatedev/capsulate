@@ -51,10 +51,10 @@ const cap = new Capsulate({
   apiKey,
   baseUrl: process.env.CAPSULATE_BASE_URL,
   teamId: process.env.CAPSULATE_TEAM_ID,
-  userAgent: "capsulate-mcp/0.5.0",
+  userAgent: "capsulate-mcp/0.6.0",
 });
 
-const server = new McpServer({ name: "capsulate", version: "0.5.0" }, { instructions: `${WORK_INSTRUCTIONS}
+const server = new McpServer({ name: "capsulate", version: "0.6.0" }, { instructions: `${WORK_INSTRUCTIONS}
 ${LIVE_INSTRUCTIONS}
 ${BROWSER_INSTRUCTIONS}
 ${ACTIONS_INSTRUCTIONS}` });

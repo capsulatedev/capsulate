@@ -117,6 +117,29 @@ export function registerComputerUse(program: Command): void {
     }),
   );
 
+  // Decision 55: a drag along a path of points (curves, circles, any shape a hand draws).
+  withShotOptions(
+    program
+      .command("stroke <id> <points...>")
+      .description("Drag along a path of x,y points, e.g. cap stroke <id> 100,200 150,180 200,220 --smooth")
+      .option("-b, --button <button>", "left | right | middle", "left")
+      .option("--smooth", "Draw a curve through the points")
+      .option("--closed", "Return to the first point")
+      .option("--step-ms <ms>", "Pause between points (default 8)", (v) => parseInt(v, 10)),
+  ).action((id: string, points: string[], _o, command: Command) =>
+    withClient(command, async (client) => {
+      const local = command.opts<{ button?: any; smooth?: boolean; closed?: boolean; stepMs?: number } & ShotOpts>();
+      const path = points.map((p) => {
+        const m = /^(-?\d+),(-?\d+)$/.exec(p.trim());
+        if (!m) throw new Error(`a point is x,y in pixels: ${p}`);
+        return [Number(m[1]), Number(m[2])] as [number, number];
+      });
+      const r = await client.capsules.stroke(id, path, { smooth: local.smooth, closed: local.closed, stepMs: local.stepMs, button: local.button, ...shotArgs(local) });
+      result(r, () => `✓ stroke through ${path.length} points${local.smooth ? " (smooth)" : ""}`);
+      emitShot(r, local);
+    }),
+  );
+
   withShotOptions(
     program.command("type <id> <text>").description("Type text (computer-use)"),
   ).action((id: string, text: string, _o, command: Command) =>

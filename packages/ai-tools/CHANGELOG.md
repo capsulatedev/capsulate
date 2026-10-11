@@ -2,6 +2,11 @@
 
 `@capsulate/ai-tools`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version again from 0.3.0 (0.2.1 was never published; its changes ship in 0.3.0).
 
+## 0.6.0 (2026-10-12)
+
+- A `capsulate_drag` tool: from one point to another, or along a path of `[x, y]` points (`smooth`, `closed`, `stepMs`, `button`).
+- `capsulate_control` takes action `care` (`quick`, `balanced`, `careful`), and `CAPSULATE_GUIDANCE` says what quick and careful mean; `capsulate_run_actions` takes 200 steps.
+
 ## 0.5.0 (2026-10-11)
 
 - `CAPSULATE_GUIDANCE`: how to work in a capsule (commands first, the screen when it matters, PowerShell on Windows, visible mode), for your agent's system prompt next to the tools. The Capsulate MCP server gives its clients the same guidance.

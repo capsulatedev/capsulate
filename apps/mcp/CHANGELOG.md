@@ -2,6 +2,12 @@
 
 `@capsulate/mcp`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.6.0 (2026-10-12)
+
+- `capsulate_drag` takes a `path` of `[x, y]` points, with `smooth`, `closed` and `stepMs`: curves, circles and any shape a hand draws (eight points on a circle with smooth and closed make a round circle). The button is honoured.
+- `capsulate_control` action `care`; the server's instructions say what `quick` (plan the job, run it in few large runs, look only when needed) and `careful` (check after every step) mean.
+- `capsulate_run_actions` takes 200 steps.
+
 ## 0.5.0 (2026-10-11)
 
 - The server's instructions open with how to work: commands first (files, installs, settings, scripts and data through `capsulate_exec`, `capsulate_write_file`, `capsulate_read_file` and `capsulate_run_code`), the screen for an app's own window, for what the person must see and for handoffs, PowerShell on Windows, and visible mode.

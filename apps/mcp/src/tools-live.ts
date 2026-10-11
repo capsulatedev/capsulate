@@ -99,20 +99,33 @@ export function registerLiveTools(t: ToolKit) {
     "capsulate_drag",
     {
       title: "Drag",
-      description: "Press at (x1, y1), drag to (x2, y2) and release, in a desktop capsule.",
+      description:
+        "Press at (x1, y1), drag to (x2, y2) and release, in a desktop capsule. Or draw along a path: path is a list of [x, y] points (at most 1000), pressed at the first and released at the last, for curves, circles, signatures and any shape a hand draws. smooth draws a curve through the points instead of straight lines; closed returns to the first point (eight points on a circle with smooth and closed make a round circle); stepMs is the pause between points (8 ms by default; apps such as Paint need about that to see every point). The button is honoured (right paints with Paint's second color).",
       inputSchema: {
         sessionId: z.string(),
-        x1: z.number(),
-        y1: z.number(),
-        x2: z.number(),
-        y2: z.number(),
+        x1: z.number().optional(),
+        y1: z.number().optional(),
+        x2: z.number().optional(),
+        y2: z.number().optional(),
+        path: z.array(z.tuple([z.number(), z.number()])).min(2).max(1000).optional().describe("[[x, y], ...] in screen pixels"),
+        smooth: z.boolean().optional(),
+        closed: z.boolean().optional(),
+        stepMs: z.number().min(0).max(100).optional(),
         button: z.enum(["left", "right", "middle"]).optional(),
         ...shotSchema,
       },
     },
     async (a) => {
       try {
-        const r = await cap.capsules.drag(a.sessionId, a.x1, a.y1, a.x2, a.y2, a.button, { screenshot: a.screenshot, screenshotDelayMs: a.screenshotDelayMs });
+        const shot = { screenshot: a.screenshot, screenshotDelayMs: a.screenshotDelayMs };
+        if (a.path) {
+          const r = await cap.capsules.stroke(a.sessionId, a.path as Array<[number, number]>, { smooth: a.smooth, closed: a.closed, stepMs: a.stepMs, button: a.button, ...shot });
+          return withShot(r, `drew a stroke through ${a.path.length} points${a.smooth ? " (smooth)" : ""}`) as TextResult;
+        }
+        if (a.x1 === undefined || a.y1 === undefined || a.x2 === undefined || a.y2 === undefined) {
+          return { content: [{ type: "text", text: "Give x1, y1, x2 and y2, or a path of [x, y] points." }], isError: true } as TextResult;
+        }
+        const r = await cap.capsules.drag(a.sessionId, a.x1, a.y1, a.x2, a.y2, a.button, shot);
         return withShot(r, `dragged (${a.x1}, ${a.y1}) to (${a.x2}, ${a.y2})`) as TextResult;
       } catch (e) {
         return err(e);
@@ -414,13 +427,14 @@ export function registerLiveTools(t: ToolKit) {
     {
       title: "Who is driving the screen",
       description:
-        "Read or change who drives a desktop capsule's shared screen. state 'free' (nobody), 'agent' (you; every input renews a 45 s hold) or 'human' (a person; your input is refused until they hand it back). action 'status' (default) reads it, 'take' claims it for you, 'release' lets go when you finish so the person can use the screen, 'pace' sets how your input plays while a person watches: 'natural' (the pointer glides, typing is readable) or 'presentation' (slow enough to follow every step); 'fast' is the default. action 'visible' turns visible mode on or off (when the person asks to see every step). The status says visible: true while it is on: then do every step on the screen instead of through commands.",
+        "Read or change who drives a desktop capsule's shared screen. state 'free' (nobody), 'agent' (you; every input renews a 45 s hold) or 'human' (a person; your input is refused until they hand it back). action 'status' (default) reads it, 'take' claims it for you, 'release' lets go when you finish so the person can use the screen, 'pace' sets how your input plays while a person watches: 'natural' (the pointer glides, typing is readable) or 'presentation' (slow enough to follow every step); 'fast' is the default. action 'visible' turns visible mode on or off (when the person asks to see every step). The status says visible: true while it is on: then do every step on the screen instead of through commands. action 'care' sets how carefully you check your work: 'quick', 'balanced' (the default) or 'careful'; the status says care when it is not balanced.",
       inputSchema: {
         sessionId: z.string(),
-        action: z.enum(["status", "take", "release", "pace", "visible"]).optional(),
+        action: z.enum(["status", "take", "release", "pace", "visible", "care"]).optional(),
         note: z.string().optional().describe("Optional note shown on the console"),
         pace: z.enum(["fast", "natural", "presentation"]).optional().describe("For action 'pace'"),
         visible: z.boolean().optional().describe("For action 'visible'"),
+        care: z.enum(["quick", "balanced", "careful"]).optional().describe("For action 'care'"),
       },
     },
     async (a) => {
@@ -434,7 +448,9 @@ export function registerLiveTools(t: ToolKit) {
                 ? await cap.capsules.setPace(a.sessionId, a.pace ?? "natural")
                 : a.action === "visible"
                   ? await cap.capsules.setVisible(a.sessionId, a.visible ?? true)
-                  : await cap.capsules.control(a.sessionId);
+                  : a.action === "care"
+                    ? await cap.capsules.setCare(a.sessionId, a.care ?? "balanced")
+                    : await cap.capsules.control(a.sessionId);
         return ok(st);
       } catch (e) {
         return err(e);
@@ -516,6 +532,7 @@ export const WORK_INSTRUCTIONS = [
   "Work through commands first: files, installs, settings, scripts and data go through capsulate_exec, capsulate_write_file, capsulate_read_file and capsulate_run_code. Each is one call and a fraction of a second, where the same work on the screen takes many steps and a look before each. Use the screen for what has no command route (an app's own window), for what the person must see, and for handoffs.",
   "On Windows, run PowerShell: capsulate_exec with ['powershell.exe', '-Command', '<script>'] or capsulate_run_code with lang 'powershell'.",
   "Check capsulate_control before a task on a desktop capsule: visible: true means the person wants to watch the whole task, so do every step on the screen. While someone watches and you work off the screen, say what you are doing with capsulate_say.",
+  "The status's care says how carefully to check your work. care 'quick': plan the whole job first, then send it in as few capsulate_run_actions calls as you can (up to 200 steps each) without looking between them; look at the screen only to learn what you cannot know in advance (where a canvas or a dialog is) or when a step failed. care 'careful': look after every step and fix a mistake before going on. No care (balanced): look when a step matters.",
 ].join("\n");
 
 /** Guidance the MCP client shows the model: how to work on a screen a person watches. */

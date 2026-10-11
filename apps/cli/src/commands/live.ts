@@ -117,6 +117,17 @@ export function registerLive(program: Command): void {
     );
 
   control
+    .command("care <id> <quick|balanced|careful>")
+    .description("How carefully the AI checks its work: quick (plan, run in one go, look only when needed), balanced (the default) or careful (check every step)")
+    .action((id: string, care: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        if (care !== "quick" && care !== "balanced" && care !== "careful") throw new Error("care takes quick, balanced or careful");
+        const st = await client.capsules.setCare(id, care);
+        result(st, () => `✓ care ${st.care || "balanced"}`);
+      }),
+    );
+
+  control
     .command("wait <id>")
     .description("Wait until a person hands the screen back")
     .option("--timeout <seconds>", "Give up after this long (default 600)", (v) => parseInt(v, 10))

@@ -14,6 +14,8 @@ import type {
   InputResult,
   ScreenshotAfterOptions,
   MouseButton,
+  StrokeOptions,
+  Care,
   UITreeResult,
   ElementSelector,
   FindElementResult,
@@ -207,6 +209,28 @@ export async function drag(
     y2,
     button,
     ...shotFields(opts),
+  });
+}
+
+/**
+ * Drag along a path (decision 55): press at the first point, move through every point, release at the last. A curve,
+ * a circle, a signature, any shape a hand draws; `smooth` curves through the points, `closed` returns to the start.
+ */
+export async function stroke(
+  http: Http,
+  sessionId: string,
+  points: Array<[number, number]>,
+  opts: StrokeOptions = {},
+): Promise<InputResult> {
+  const { smooth, closed, stepMs, button, ...shot } = opts;
+  return http.post<InputResult>(`/sessions/${enc(sessionId)}/drag`, {
+    sessionId,
+    path: points,
+    ...(smooth ? { smooth } : {}),
+    ...(closed ? { closed } : {}),
+    ...(stepMs ? { stepMs } : {}),
+    button: button ?? "left",
+    ...shotFields(shot),
   });
 }
 
@@ -411,6 +435,11 @@ export async function setPace(http: Http, sessionId: string, pace: Pace): Promis
 /** Visible mode (Phase HYB): on, the AI is asked to do every step on the screen; off, commands first. */
 export async function setVisible(http: Http, sessionId: string, visible: boolean): Promise<ControlStatus> {
   return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/visible`, { visible });
+}
+
+/** How carefully the AI checks its work (decision 55): quick, balanced (the default) or careful. */
+export async function setCare(http: Http, sessionId: string, care: Care): Promise<ControlStatus> {
+  return http.post<ControlStatus>(`/sessions/${enc(sessionId)}/control/care`, { care });
 }
 
 /** Hand the screen to a person with a note saying what you need ("Please sign in, then hand it back"). */

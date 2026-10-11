@@ -1,6 +1,6 @@
 {
   "name": "@capsulate/sdk",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Official Capsulate SDK: launch and drive isolated cloud sandboxes (capsules) from JavaScript/TypeScript. Powers the cap CLI, the MCP server, and your own agents.",
   "license": "MIT",
   "type": "module",

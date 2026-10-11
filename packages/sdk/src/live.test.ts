@@ -118,6 +118,36 @@ test("setVisible posts the switch and returns the control state", async () => {
   assert.deepEqual(call?.body, { visible: true });
 });
 
+// Decision 55: how carefully the AI checks, and drags along a path.
+test("setCare posts the setting and returns the control state", async () => {
+  const { cap, calls } = fakeApi((c) => {
+    if (c.path === "/sessions/sess-1/control/care") return { body: ctl("free", 6, { care: (c.body as any).care }) };
+    return { status: 404, body: { error: "unexpected " + c.path } };
+  });
+  const st = await cap.capsules.setCare("sess-1", "quick");
+  assert.equal(st.care, "quick");
+  const [call] = calls;
+  assert.equal(call?.method, "POST");
+  assert.deepEqual(call?.body, { care: "quick" });
+});
+
+test("stroke drags along a path with its options; a plain drag is unchanged", async () => {
+  const { cap, calls } = fakeApi(() => ({ body: { ok: true } }));
+  const circle: Array<[number, number]> = [[600, 400], [685, 485], [600, 520], [515, 485], [480, 400], [515, 315], [600, 280], [685, 315]];
+  await cap.capsules.stroke("sess-1", circle, { smooth: true, closed: true, button: "right", stepMs: 12 });
+  const [s] = calls;
+  assert.equal(s?.path, "/sessions/sess-1/drag");
+  assert.deepEqual(s?.body, { sessionId: "sess-1", path: circle, smooth: true, closed: true, stepMs: 12, button: "right" });
+
+  await cap.capsules.stroke("sess-1", [[1, 1], [9, 9]]);
+  assert.deepEqual(calls[1]?.body, { sessionId: "sess-1", path: [[1, 1], [9, 9]], button: "left" });
+
+  await cap.capsules.drag("sess-1", 1, 2, 3, 4, "right");
+  const plain = calls[2]?.body as Record<string, unknown>;
+  assert.equal(plain.path, undefined);
+  assert.equal(plain.button, "right");
+});
+
 test("run with powershell sends a PowerShell -Command argv (the agent's fast route on Windows)", async () => {
   const { cap, calls } = fakeApi(() => ({ body: { exitCode: 0, stdout: "ok", stderr: "", timedOut: false, durationMs: 300 } }));
   await cap.capsules.run("sess-1", "Get-ChildItem C:\\Users\\Public", { lang: "powershell", cwd: "C:\\Users\\Public" });

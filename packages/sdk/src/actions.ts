@@ -84,7 +84,7 @@ export interface RunActionsResult {
   ms: number;
 }
 
-/** Run steps in one call. A run is checked whole before any step runs: at most 50 steps, 90 s in all. */
+/** Run steps in one call. A run is checked whole before any step runs: at most 200 steps, 90 s in all. */
 export function runActions(
   http: Http,
   sessionId: string,

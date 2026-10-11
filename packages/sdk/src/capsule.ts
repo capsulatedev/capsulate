@@ -27,6 +27,8 @@ import type {
   InputResult,
   ScreenshotAfterOptions,
   MouseButton,
+  StrokeOptions,
+  Care,
   Snapshot,
   GuestInvite,
   GuestInviteResult,
@@ -144,6 +146,10 @@ export class Capsule {
   scroll(x: number, y: number, dx: number, dy: number, opts?: ScreenshotAfterOptions): Promise<InputResult> {
     return I.scroll(this.ctx.http, this.id, x, y, dx, dy, opts);
   }
+  /** Drag along a path of [x, y] points (decision 55): curves, circles, any shape; see StrokeOptions. */
+  stroke(points: Array<[number, number]>, opts?: StrokeOptions): Promise<InputResult> {
+    return I.stroke(this.ctx.http, this.id, points, opts);
+  }
   drag(
     x1: number,
     y1: number,
@@ -240,6 +246,10 @@ export class Capsule {
   /** Visible mode (Phase HYB): on, do every step on the screen (the person wants to watch); off, commands first. */
   setVisible(visible: boolean): Promise<ControlStatus> {
     return I.setVisible(this.ctx.http, this.id, visible);
+  }
+  /** How carefully the AI checks its work (decision 55): quick, balanced (the default) or careful. */
+  setCare(care: Care): Promise<ControlStatus> {
+    return I.setCare(this.ctx.http, this.id, care);
   }
   /**
    * Hand the screen to a person with a note ("Please sign in, then hand it back") and by default wait

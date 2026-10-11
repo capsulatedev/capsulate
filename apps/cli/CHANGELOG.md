@@ -2,6 +2,12 @@
 
 `@capsulate/cli` (the `cap` command). The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.6.0 (2026-10-12)
+
+- `cap stroke <id> x,y x,y ...` drags along a path of points (`--smooth`, `--closed`, `--step-ms`, `--button`).
+- `cap control care <id> quick|balanced|careful`: how carefully the AI checks its work.
+- `cap actions` takes 200 steps.
+
 ## 0.5.0 (2026-10-11)
 
 - `cap control visible <id> on|off`: visible mode, the AI is asked to do every step on the screen; off (the default), commands first.

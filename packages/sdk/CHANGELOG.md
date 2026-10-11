@@ -2,6 +2,12 @@
 
 `@capsulate/sdk`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.6.0 (2026-10-12)
+
+- `setCare(care)` on the `Capsule` handle and the `capsules` resource, and `ControlStatus.care`: how carefully the AI checks its work on a screen. `quick`: plan the whole job and run it in as few runs as possible, looking at the screen only to learn something or when a step failed; `careful`: check after every step; `balanced` is the default.
+- `stroke(points, { smooth, closed, stepMs, button })` drags along a path of `[x, y]` points: curves, circles, a signature, any shape a hand draws. `smooth` draws a curve through the points, `closed` returns to the first one, `stepMs` is the pause between points (8 ms by default). `drag()` is unchanged.
+- `runActions` takes up to 200 steps (was 50); a `drag` step takes a `path` too.
+
 ## 0.5.0 (2026-10-11)
 
 - Visible mode: `setVisible(visible)` on the `Capsule` handle and the `capsules` resource, and `ControlStatus.visible`. On, the person wants to watch the whole task, so the AI does every step on the screen; off (the default), it works through commands first and uses the screen when it matters.
