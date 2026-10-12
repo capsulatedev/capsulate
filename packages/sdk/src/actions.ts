@@ -36,10 +36,24 @@ const enc = encodeURIComponent;
  *   ({path, maxBytes?}; a text file also comes back as `text`). They are not screen input, so they run while a
  *   person holds the screen;
  * - run helpers: click_element ({selector, waitMs?, button?, count?}: find, waiting up to 5 s, then click the
- *   centre), say ({text}: one line of narration for the person watching) and pause ({ms}, at most 10000).
+ *   centre), say ({text}: one line of narration for the person watching) and pause ({ms}, at most 10000);
+ * - skills (Phase SK): use ({procedure, skill?, version?, args?}: run a procedure of a skill with its args; the
+ *   run's `skill` is the default), check (one of {element, present?}, {window}, {exec, exitCode?, contains?},
+ *   {file, contains?} or {pixel: {x, y, color, tolerance?}}, waiting up to timeoutMs), pixel ({x, y}: a pixel's
+ *   colour) and menus ({window?}: every menu's items, read by opening each menu).
+ *
+ * Any field can hold {{name}} placeholders, filled from the values earlier steps saved (`save`); a placeholder that
+ * is the whole value keeps its type (a number in a text field is used as its text), and an unknown one stays as
+ * typed.
  */
 export interface RunStep {
   do: string;
+  /** The step's coordinates are in this frame's units (the run's `frames`), mapped to the screen; a stroke is
+   *  clamped inside the frame's `clamp`. */
+  frame?: string;
+  /** Keep fields of the step's result as variables for later steps: {"total": "text"} keeps result.text as
+   *  {{total}}, "" the whole result. */
+  save?: Record<string, string>;
   /** A wait that must succeed after the step: wait_element fields after a desktop step ({selector, timeoutMs}),
    *  browser_wait fields after a browser step ({text | selector | ref, state, timeoutMs}). */
   expect?: Record<string, unknown>;
@@ -81,7 +95,25 @@ export interface RunActionsResult {
   stopReason?: RunStopReason;
   steps: RunStepResult[];
   observation?: RunStepResult;
+  /** The values the steps saved (`save`) by the end of the run. */
+  variables?: Record<string, unknown>;
   ms: number;
+}
+
+/** A coordinate frame: screen = origin + scale * (x, y); clamp ([[x0, y0], [x1, y1]] in frame units) keeps every
+ *  point of a stroke inside. */
+export interface RunFrame {
+  origin: [number, number];
+  scale: number;
+  clamp?: [[number, number], [number, number]];
+}
+
+export interface RunActionsOptions {
+  observe?: RunObserve;
+  /** The skill `use` steps call when they name none (its current version). */
+  skill?: string;
+  /** Frames the steps may name. */
+  frames?: Record<string, RunFrame>;
 }
 
 /** Run steps in one call. A run is checked whole before any step runs: at most 200 steps, 90 s in all. */
@@ -89,10 +121,12 @@ export function runActions(
   http: Http,
   sessionId: string,
   steps: RunStep[],
-  opts: { observe?: RunObserve } = {},
+  opts: RunActionsOptions = {},
 ): Promise<RunActionsResult> {
   return http.post<RunActionsResult>(`/sessions/${enc(sessionId)}/actions`, {
     steps,
     ...(opts.observe ? { observe: opts.observe } : {}),
+    ...(opts.skill ? { skill: opts.skill } : {}),
+    ...(opts.frames ? { frames: opts.frames } : {}),
   });
 }

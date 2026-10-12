@@ -27,6 +27,9 @@ import { registerCatalog } from "./commands/catalog.js";
 import { registerAccount } from "./commands/account.js";
 import { registerDemos } from "./commands/demos.js";
 import { registerLive } from "./commands/live.js"; // Phase LCU — live computer use
+import { registerSkills } from "./commands/skills.js"; // Phase SK — skills
+import { registerInbox, registerRuns } from "./commands/runs.js"; // Phase SK — runs of skills, the inbox
+import { registerLessons } from "./commands/lessons.js"; // Phase SK — lessons
 
 const program = new Command();
 
@@ -53,6 +56,10 @@ registerCatalog(program);
 registerAccount(program);
 registerDemos(program);
 registerLive(program);
+registerSkills(program);
+registerRuns(program);
+registerInbox(program);
+registerLessons(program);
 
 program.addHelpText(
   "after",
@@ -68,6 +75,7 @@ Examples:
   $ cap handoff sess-abc "Please sign in"  # the AI asks you, waits for Done
   $ cap snapshot create sess-abc -n "before-upgrade"
   $ cap volume create data 10
+  $ cap skill save ./krita-painting        # what the AI learned, as a skill
   $ cap capsule destroy sess-abc
 
 Docs: https://docs.capsulate.dev   ·   cap <command> --help for details

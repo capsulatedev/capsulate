@@ -2,6 +2,13 @@
 
 `@capsulate/sdk`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.7.0 (2026-10-13)
+
+- Skills: `cap.skills` (create, versions, approve, reject, roll back, import and export a folder or zip, save a capsule as a skill's environment, rehearse, weekly rehearsals). A skill is an Agent Skills folder (`SKILL.md`) plus `capsulate/skill.json`: its environment, inputs, procedures, checks and traps.
+- `cap.capsules.launch({ skill })` starts a skill's environment and runs its setup; `runActions` takes `use` (a skill's procedure, with args), `frames`, `pixel`, `menus`, `check` and `save`.
+- Runs: `cap.runs` (start in the background, read with a long poll, answer an `ask`, retry, skip or replace a failed step, cancel). `cap.inbox.list()`: what waits for someone.
+- Lessons: `cap.lessons` (start, note, mark, pause, resume, finish, discard, events, digest, keyframes, draft, `onCapsule`, `addAudio` for the teacher's voice); start options `video` and `voice`.
+
 ## 0.6.0 (2026-10-12)
 
 - `setCare(care)` on the `Capsule` handle and the `capsules` resource, and `ControlStatus.care`: how carefully the AI checks its work on a screen. `quick`: plan the whole job and run it in as few runs as possible, looking at the screen only to learn something or when a step failed; `careful`: check after every step; `balanced` is the default.

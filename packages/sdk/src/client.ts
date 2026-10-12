@@ -15,6 +15,10 @@ import { Catalog, Bundles, Templates } from "./resources/catalog.js";
 import { Teams, Billing, ApiKeys } from "./resources/account.js";
 import { Demos } from "./resources/demos.js";
 import { TeamRecordings } from "./resources/recordings.js";
+import { Skills } from "./resources/skills.js";
+import { Runs } from "./resources/runs.js";
+import { Inbox } from "./resources/inbox.js";
+import { Lessons } from "./resources/lessons.js";
 import type { TeamSummary } from "./types.js";
 
 export interface CapsulateOptions {
@@ -60,6 +64,14 @@ export class Capsulate {
   readonly apiKeys: ApiKeys;
   readonly demos: Demos;
   readonly recordings: TeamRecordings;
+  /** The team's skill library (Phase SK): learn once, repeat in minutes. */
+  readonly skills: Skills;
+  /** Runs (Phase SK): a skill's procedure in the background, waiting for you where run_actions would stop. */
+  readonly runs: Runs;
+  /** The inbox (Phase SK): what waits for someone in the team. */
+  readonly inbox: Inbox;
+  /** Lessons (Phase SK): teaching sessions a skill is learned from. */
+  readonly lessons: Lessons;
 
   constructor(opts: CapsulateOptions = {}) {
     const apiKey = opts.apiKey ?? envGet("CAPSULATE_API_KEY");
@@ -95,6 +107,10 @@ export class Capsulate {
     this.apiKeys = new ApiKeys(ctx);
     this.demos = new Demos(ctx);
     this.recordings = new TeamRecordings(ctx);
+    this.skills = new Skills(ctx);
+    this.runs = new Runs(ctx);
+    this.inbox = new Inbox(ctx);
+    this.lessons = new Lessons(ctx);
   }
 
   /**

@@ -21,6 +21,7 @@ import { Capsulate, CapsulateError, type ScreenshotResult } from "@capsulate/sdk
 import { registerLiveTools, LIVE_INSTRUCTIONS, WORK_INSTRUCTIONS } from "./tools-live.js";
 import { registerBrowserTools, BROWSER_INSTRUCTIONS } from "./tools-browser.js";
 import { registerActionTools, ACTIONS_INSTRUCTIONS } from "./tools-actions.js";
+import { registerInboxTool, registerLessonTool, registerRunTools, registerSkillTools, SKILLS_INSTRUCTIONS } from "./tools-skills.js";
 
 /// keyFromFile reads CAPSULATE_API_KEY_FILE: a bare key, or a dotenv-style CAPSULATE_API_KEY=... line.
 function keyFromFile(file: string | undefined): string | undefined {
@@ -51,13 +52,14 @@ const cap = new Capsulate({
   apiKey,
   baseUrl: process.env.CAPSULATE_BASE_URL,
   teamId: process.env.CAPSULATE_TEAM_ID,
-  userAgent: "capsulate-mcp/0.6.0",
+  userAgent: "capsulate-mcp/0.7.0",
 });
 
-const server = new McpServer({ name: "capsulate", version: "0.6.0" }, { instructions: `${WORK_INSTRUCTIONS}
+const server = new McpServer({ name: "capsulate", version: "0.7.0" }, { instructions: `${WORK_INSTRUCTIONS}
 ${LIVE_INSTRUCTIONS}
 ${BROWSER_INSTRUCTIONS}
-${ACTIONS_INSTRUCTIONS}` });
+${ACTIONS_INSTRUCTIONS}
+${SKILLS_INSTRUCTIONS}` });
 
 type TextResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
@@ -130,10 +132,12 @@ server.registerTool(
   {
     title: "Launch a capsule",
     description:
-      "Launch a new isolated cloud sandbox (capsule) and (by default) wait until it is ready. Returns the capsule id and connection info. Use the returned sessionId for exec/files/etc.",
+      "Launch a new isolated cloud sandbox (capsule) and (by default) wait until it is ready. Returns the capsule id and connection info. Use the returned sessionId for exec/files/etc. With skill, the capsule is the skill's environment (its saved template with the software set up) and the skill's setup procedure has run, so you can use its procedures right away.",
     inputSchema: {
-      template: z.string().describe("Template / OS / bundle id, e.g. 'ubuntu-22.04-headless'"),
-      size: z.string().optional().describe("Resource size, e.g. '2c4g' (default)"),
+      template: z.string().optional().describe("Template / OS / bundle id, e.g. 'ubuntu-22.04-headless' (not needed with skill)"),
+      size: z.string().optional().describe("Resource size, e.g. '2c4g' (default, or the skill's)"),
+      skill: z.string().optional().describe("Launch a skill's environment and run its setup (a skill name from capsulate_skills)"),
+      skillVersion: z.number().int().positive().optional().describe("With skill: launch this version (default the current one)"),
       region: z.string().optional().describe("Region hint; omit for automatic placement"),
       bundle: z.string().optional().describe("Software bundle (Bucket B) id to launch from"),
       snapshot: z.string().optional().describe("Snapshot/template id to restore from"),
@@ -143,16 +147,29 @@ server.registerTool(
   },
   async (args) => {
     try {
+      if (!args.template && !args.skill) throw new Error("Give template, or skill to launch a skill's environment.");
       const opts = {
         template: args.template,
-        size: args.size ?? "2c4g",
+        size: args.size ?? (args.skill ? undefined : "2c4g"),
+        skill: args.skill,
+        skillVersion: args.skillVersion,
         region: args.region,
         bundle: args.bundle,
         snapshot: args.snapshot,
         env: args.env,
       };
       const c = args.wait === false ? await cap.capsules.create(opts) : await cap.capsules.launch(opts);
-      return ok({ sessionId: c.id, status: c.status, template: c.data.templateId, size: c.data.size, region: c.data.region });
+      const out: Record<string, unknown> = { sessionId: c.id, status: c.status, template: c.data.templateId, size: c.data.size, region: c.data.region };
+      const sk = c.data.skill;
+      if (sk) {
+        out.skill = { name: sk.name, version: sk.version, setup: sk.setup };
+        if (sk.setupResult) {
+          out.setup = sk.setupResult.ok
+            ? "ran"
+            : `failed: ${sk.setupResult.error ?? "no answer"}. The capsule is running: look at the screen and finish the setup yourself.`;
+        }
+      }
+      return ok(out);
     } catch (e) {
       return err(e);
     }
@@ -481,6 +498,12 @@ registerBrowserTools({ server, cap, ok, err, withShot });
 
 // ---- several steps in one call (LCU M2.4): run_actions ----
 registerActionTools({ server, cap, ok, err, withShot });
+
+// ---- skills (Phase SK): what was learned before, and what the model learned ----
+registerSkillTools({ server, cap, ok, err, withShot });
+registerRunTools({ server, cap, ok, err, withShot });
+registerInboxTool({ server, cap, ok, err, withShot });
+registerLessonTool({ server, cap, ok, err, withShot });
 
 async function main() {
   const transport = new StdioServerTransport();

@@ -19,8 +19,10 @@ export function registerCapsules(program: Command): void {
   program
     .command("launch")
     .description("Launch a new capsule (alias of `capsule create`)")
-    .requiredOption("-t, --template <id>", "Template / OS / bundle id, e.g. ubuntu-22.04-headless")
-    .option("-s, --size <size>", "Resource size", "1c2g")
+    .option("-t, --template <id>", "Template / OS / bundle id, e.g. ubuntu-22.04-headless (or give --skill)")
+    .option("-s, --size <size>", "Resource size (default 1c2g, or the skill's)")
+    .option("--skill <name>", "Launch the skill's environment and run its setup")
+    .option("--skill-version <n>", "Launch this version of the skill (default the current one)")
     .option("-r, --region <region>", "Region hint (ISO-3166 alpha-2); omit for automatic")
     .option("-b, --bundle <id>", "Software bundle (Bucket B) to launch from")
     .option("--snapshot <id>", "Restore from a snapshot/template id")
@@ -42,8 +44,10 @@ export function registerCapsules(program: Command): void {
   cap
     .command("create")
     .description("Launch a new capsule")
-    .requiredOption("-t, --template <id>", "Template / OS / bundle id")
-    .option("-s, --size <size>", "Resource size", "1c2g")
+    .option("-t, --template <id>", "Template / OS / bundle id (or give --skill)")
+    .option("-s, --size <size>", "Resource size (default 1c2g, or the skill's)")
+    .option("--skill <name>", "Launch the skill's environment and run its setup")
+    .option("--skill-version <n>", "Launch this version of the skill")
     .option("-r, --region <region>", "Region hint")
     .option("-b, --bundle <id>", "Software bundle id")
     .option("--snapshot <id>", "Restore from snapshot/template id")
@@ -217,21 +221,24 @@ function rawExecCommand(id: string, fallback: string[]): string[] {
   return rest;
 }
 
-function parseRemote(s: string): { id: string; path: string } | null {
+export function parseRemote(s: string): { id: string; path: string } | null {
   // ID:PATH where ID looks like a session id (no leading drive letter like C:\).
   const idx = s.indexOf(":");
   if (idx <= 1) return null; // avoid Windows drive letters "C:\..."
   const id = s.slice(0, idx);
   const path = s.slice(idx + 1);
-  if (!path.startsWith("/")) return null; // remote paths are absolute
+  // Remote paths are absolute: /home/... on Linux, C:\... or C:/... on Windows.
+  if (!path.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(path)) return null;
   return { id, path };
 }
 
 async function doLaunch(command: Command): Promise<void> {
   await withClient(command, async (client) => {
     const o = command.opts<{
-      template: string;
+      template?: string;
       size?: string;
+      skill?: string;
+      skillVersion?: string;
       region?: string;
       bundle?: string;
       snapshot?: string;
@@ -241,9 +248,13 @@ async function doLaunch(command: Command): Promise<void> {
       record?: boolean;
       wait?: boolean;
     }>();
+    if (!o.template && !o.skill) throw new Error("Give --template <id>, or --skill <name> to launch a skill's environment.");
     const opts = {
       template: o.template,
-      size: o.size ?? "1c2g",
+      // A skill's environment has its own size; without a skill the CLI's default is 1c2g.
+      size: o.size ?? (o.skill ? undefined : "1c2g"),
+      skill: o.skill,
+      skillVersion: o.skillVersion ? parseInt(o.skillVersion, 10) : undefined,
       region: o.region,
       bundle: o.bundle,
       snapshot: o.snapshot,
@@ -257,9 +268,18 @@ async function doLaunch(command: Command): Promise<void> {
       c.data,
       (d: any) =>
         `✓ ${o.wait ? "Capsule ready" : "Capsule launched"}: ${d.sessionId} (${d.status})\n` +
-        `  template ${d.templateId}  size ${d.size}  region ${d.region ?? "auto"}`,
+        `  template ${d.templateId}  size ${d.size}  region ${d.region ?? "auto"}` +
+        (d.skill ? `\n  ${skillLine(d.skill)}` : ""),
     );
   });
+}
+
+/** How a launch for a skill went, in one line. */
+function skillLine(s: any): string {
+  const head = `skill ${s.name} version ${s.version}`;
+  if (!s.setup) return head;
+  if (s.setupResult?.ok) return `${head}: setup ${s.setup} ran in ${((s.setupResult.ms ?? 0) / 1000).toFixed(1)} s`;
+  return `${head}: setup ${s.setup} FAILED: ${s.setupResult?.error ?? "no answer"} (the capsule is running)`;
 }
 
 async function doList(command: Command): Promise<void> {

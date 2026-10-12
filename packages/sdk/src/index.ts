@@ -10,7 +10,7 @@ export { Capsule } from "./capsule.js";
 export { Browser, browserCall } from "./browser.js";
 export type { BrowserTarget, BrowserElement, BrowserPage, BrowserSnapshot, BrowserTab, BrowserResult } from "./browser.js";
 export { runActions } from "./actions.js";
-export type { RunStep, RunObserve, RunStepResult, RunStopReason, RunActionsResult } from "./actions.js";
+export type { RunStep, RunObserve, RunStepResult, RunStopReason, RunActionsResult, RunActionsOptions, RunFrame } from "./actions.js";
 export { CapsulateError, CapsulateAuthError } from "./errors.js";
 export { encodeBase64, decodeBase64 } from "./internal.js";
 
@@ -25,3 +25,7 @@ export { Sharing, Ports } from "./resources/sharing.js";
 export { Catalog, Bundles, Templates } from "./resources/catalog.js";
 export { Teams, Billing, ApiKeys } from "./resources/account.js";
 export { Demos } from "./resources/demos.js";
+export { Skills } from "./resources/skills.js";
+export { Runs } from "./resources/runs.js";
+export { Inbox } from "./resources/inbox.js";
+export { Lessons } from "./resources/lessons.js";

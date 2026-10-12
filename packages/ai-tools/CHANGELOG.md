@@ -2,6 +2,10 @@
 
 `@capsulate/ai-tools`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version again from 0.3.0 (0.2.1 was never published; its changes ship in 0.3.0).
 
+## 0.7.0 (2026-10-13)
+
+- Tools for skills, runs, the inbox and lessons (`capsulate_skills`, `capsulate_skill_run`, `capsulate_inbox`, `capsulate_lesson`), and `skill` on `capsulate_launch_capsule`; `CAPSULATE_GUIDANCE` gives the learning protocol.
+
 ## 0.6.0 (2026-10-12)
 
 - A `capsulate_drag` tool: from one point to another, or along a path of `[x, y]` points (`smooth`, `closed`, `stepMs`, `button`).

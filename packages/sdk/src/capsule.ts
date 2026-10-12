@@ -8,7 +8,7 @@
 
 import { Browser } from "./browser.js";
 import { postLaunch } from "./launch.js";
-import { runActions, type RunActionsResult, type RunObserve, type RunStep } from "./actions.js";
+import { runActions, type RunActionsOptions, type RunActionsResult, type RunStep } from "./actions.js";
 import type { ClientContext } from "./internal.js";
 import * as I from "./interaction.js";
 import { Recordings } from "./resources/recordings.js";
@@ -41,6 +41,8 @@ import type {
   ClipboardResult,
   WindowListResult,
   OCRResult,
+  PixelResult,
+  MenusResult,
   ScreenshotOptions,
   ElementAction,
   ElementActionOptions,
@@ -123,8 +125,9 @@ export class Capsule {
   }
 
   /** Several steps in one call: they run back to back on the server and the run stops at the first that fails
-   *  (LCU M2.4). See RunStep for the verbs; `observe` returns a look at the end. */
-  runActions(steps: RunStep[], opts?: { observe?: RunObserve }): Promise<RunActionsResult> {
+   *  (LCU M2.4). See RunStep for the verbs; `observe` returns a look at the end, `skill` is the skill `use` steps
+   *  call, `frames` the coordinate frames steps may name (Phase SK). */
+  runActions(steps: RunStep[], opts?: RunActionsOptions): Promise<RunActionsResult> {
     return runActions(this.ctx.http, this.id, steps, opts);
   }
 
@@ -191,6 +194,15 @@ export class Capsule {
   }
   ocr(region?: { x?: number; y?: number; w?: number; h?: number }): Promise<OCRResult> {
     return I.ocr(this.ctx.http, this.id, region);
+  }
+  /** A pixel's colour (Phase SK). */
+  pixel(x: number, y: number): Promise<PixelResult> {
+    return I.pixel(this.ctx.http, this.id, x, y);
+  }
+  /** Every menu of the focused window (or the one whose title contains `window`) with its items, read by opening
+   *  each menu and closing it again (Phase SK): the quick way to learn an application's commands. */
+  menus(window?: string): Promise<MenusResult> {
+    return I.menus(this.ctx.http, this.id, window);
   }
 
   // ---- the complete toolset (LCU M2.6) ----

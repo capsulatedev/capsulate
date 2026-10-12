@@ -23,6 +23,8 @@ import type {
   ClipboardResult,
   WindowListResult,
   OCRResult,
+  PixelResult,
+  MenusResult,
   ScreenshotOptions,
   ElementAction,
   ElementActionOptions,
@@ -327,6 +329,17 @@ export async function ocr(
   region: { x?: number; y?: number; w?: number; h?: number } = {},
 ): Promise<OCRResult> {
   return http.post<OCRResult>(`/sessions/${enc(sessionId)}/ocr`, { sessionId, ...region });
+}
+
+/** A pixel's colour, read from a 1x1 screenshot (Phase SK). */
+export async function pixel(http: Http, sessionId: string, x: number, y: number): Promise<PixelResult> {
+  return http.post<PixelResult>(`/sessions/${enc(sessionId)}/pixel`, { x, y });
+}
+
+/** The focused window's menu bar (or the window whose title contains `window`) with every menu's items, read by
+ *  opening each menu and closing it again (Phase SK). It takes a few seconds. */
+export async function menus(http: Http, sessionId: string, window?: string): Promise<MenusResult> {
+  return http.post<MenusResult>(`/sessions/${enc(sessionId)}/menus`, window ? { window } : {});
 }
 
 // ---- the complete toolset (LCU M2.6) ----

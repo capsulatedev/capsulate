@@ -3,7 +3,7 @@
 // Capsule handle (capsule.exec(…)); they share one implementation (interaction.ts).
 
 import { Browser } from "../browser.js";
-import { runActions, type RunActionsResult, type RunObserve, type RunStep } from "../actions.js";
+import { runActions, type RunActionsOptions, type RunActionsResult, type RunStep } from "../actions.js";
 import { postLaunch } from "../launch.js";
 import type { ClientContext } from "../internal.js";
 import * as I from "../interaction.js";
@@ -31,6 +31,8 @@ import type {
   ClipboardResult,
   WindowListResult,
   OCRResult,
+  PixelResult,
+  MenusResult,
   ScreenshotOptions,
   ElementAction,
   ElementActionOptions,
@@ -70,11 +72,11 @@ export class Capsules {
    */
   async create(opts: CreateCapsuleOptions): Promise<Capsule> {
     const teamId = await this.ctx.resolveTeamId(opts.teamId);
-    const body: Record<string, unknown> = {
-      templateId: opts.template,
-      size: opts.size,
-      teamId,
-    };
+    const body: Record<string, unknown> = { teamId };
+    if (opts.template) body.templateId = opts.template;
+    if (opts.size) body.size = opts.size;
+    if (opts.skill) body.skill = opts.skill;
+    if (opts.skillVersion) body.skillVersion = opts.skillVersion;
     if (opts.region) body.region = opts.region;
     if (opts.bundle) body.bundleId = opts.bundle;
     if (opts.snapshot) body.snapshotId = opts.snapshot;
@@ -160,7 +162,7 @@ export class Capsules {
     return new Browser(this.ctx.http, sessionId);
   }
   /** Several steps in one call, stopping at the first that fails (LCU M2.4). */
-  runActions(sessionId: string, steps: RunStep[], opts?: { observe?: RunObserve }): Promise<RunActionsResult> {
+  runActions(sessionId: string, steps: RunStep[], opts?: RunActionsOptions): Promise<RunActionsResult> {
     return runActions(this.ctx.http, sessionId, steps, opts);
   }
 
@@ -248,6 +250,14 @@ export class Capsules {
     region?: { x?: number; y?: number; w?: number; h?: number },
   ): Promise<OCRResult> {
     return I.ocr(this.ctx.http, sessionId, region);
+  }
+  /** A pixel's colour (Phase SK). */
+  pixel(sessionId: string, x: number, y: number): Promise<PixelResult> {
+    return I.pixel(this.ctx.http, sessionId, x, y);
+  }
+  /** Every menu of the focused window (or the one whose title contains `window`), read by opening each (Phase SK). */
+  menus(sessionId: string, window?: string): Promise<MenusResult> {
+    return I.menus(this.ctx.http, sessionId, window);
   }
 
   // ---- the complete toolset (LCU M2.6) ----

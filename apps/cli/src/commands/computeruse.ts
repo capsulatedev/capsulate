@@ -316,6 +316,38 @@ export function registerComputerUse(program: Command): void {
     );
 
   program
+    .command("pixel <id> <x> <y>")
+    .description("Read a pixel's colour (#rrggbb)")
+    .action((id: string, x: string, y: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const r = await client.capsules.pixel(id, parseInt(x, 10), parseInt(y, 10));
+        result(r, (d: any) => `${d.color}  (r ${d.r}, g ${d.g}, b ${d.b})`);
+      }),
+    );
+
+  program
+    .command("menus <id>")
+    .description("List every menu of the focused window with its items (opens each menu, then closes it)")
+    .option("--window <title>", "The window whose title contains this")
+    .action((id: string, _o, command: Command) =>
+      withClient(command, async (client) => {
+        const local = command.opts<{ window?: string }>();
+        const r = await client.capsules.menus(id, local.window);
+        result(r, (d: any) =>
+          [
+            `Menus of ${d.window ?? "the focused window"}:`,
+            ...d.menus.flatMap((m: any) => [
+              `${m.name}${m.enabled ? "" : " (disabled)"}`,
+              ...(m.items ?? []).map(
+                (it: any) => `  ${it.name}${it.submenu ? " >" : ""}${it.checked ? " [x]" : ""}${it.enabled ? "" : " (disabled)"}`,
+              ),
+            ]),
+          ].join("\n"),
+        );
+      }),
+    );
+
+  program
     .command("trace <id>")
     .description("Show the structured action trace (every interaction this run, in order)")
     .action((id: string, _o, command: Command) =>

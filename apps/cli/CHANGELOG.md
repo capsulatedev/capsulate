@@ -2,6 +2,14 @@
 
 `@capsulate/cli` (the `cap` command). The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.7.0 (2026-10-13)
+
+- `cap skill ...`: list, get, save, versions, approve, reject, rollback, import, export, environment, rehearse, weekly, run.
+- `cap runs ...` and `cap inbox`.
+- `cap lesson ...`: start (`--mode`, `--video`, `--voice`, `--skill`), note, pause, resume, finish, discard, get, on, digest (with what was said), frame, draft, list.
+- `cap launch --skill`, `cap actions --skill --frames`, `cap pixel`, `cap menus`.
+- `cap cp` takes Windows paths on the capsule side (`C:\...` or `C:/...`).
+
 ## 0.6.0 (2026-10-12)
 
 - `cap stroke <id> x,y x,y ...` drags along a path of points (`--smooth`, `--closed`, `--step-ms`, `--button`).

@@ -19,10 +19,19 @@ export type CapsuleStatus =
 
 /** Options for launching a capsule (POST /sessions). */
 export interface CreateCapsuleOptions {
-  /** Golden-image / bundle / template id to boot, e.g. "ubuntu-22.04-headless". Required. */
-  template: string;
-  /** Resource size, e.g. "2c4g". Required. */
-  size: string;
+  /** Golden-image / bundle / template id to boot, e.g. "ubuntu-22.04-headless". Required unless `skill` names a
+   *  skill whose environment says what to boot. */
+  template?: string;
+  /** Resource size, e.g. "2c4g". Required unless `skill` is given (the skill's size, else 2c4g). */
+  size?: string;
+  /**
+   * Launch the capsule for a skill of the team (Phase SK, its name or skl_ id): what the launch leaves out comes
+   * from the skill's environment (a saved template with the software set up, its size), and the skill's setup
+   * procedure runs once the capsule is ACTIVE. How it went is in `capsule.data.skill`.
+   */
+  skill?: string;
+  /** Launch from this version of the skill's environment (default the current version). */
+  skillVersion?: number;
   /** Team that owns + pays for the capsule. Optional — resolved from the API key / first team when omitted. */
   teamId?: string;
   /** Region hint (ISO-3166 alpha-2). Omit for automatic placement. */
@@ -76,6 +85,8 @@ export interface Capsule {
   /** The console shows the live shared screen (the screen the AI drives): every Linux desktop, and a Windows
    *  desktop on its VM screen. Console links, control and the live overlay apply. */
   sharedScreen?: boolean;
+  /** The skill the capsule was launched for, and how its setup went (Phase SK). */
+  skill?: SkillLaunch;
   createdAt?: string;
   expiresAt?: string;
   [key: string]: unknown;
@@ -686,4 +697,478 @@ export interface ConsoleLink {
   /** view: watch only. control: watch, take the screen and hand it back. */
   mode: "view" | "control";
   expiresAt: string;
+}
+
+// ---- Skills (Phase SK, decision 56): learn once, repeat in minutes ----
+
+/** tool: operate an application (replayable); way: how an expert works (rules and examples the AI follows). */
+export type SkillKind = "tool" | "way";
+export type SkillStatus = "active" | "archived";
+/** Every write makes a new version; only an approved version runs. */
+export type SkillVersionState = "draft" | "proposed" | "current" | "old" | "rejected";
+export type SkillSource = "ai" | "lesson" | "edit" | "fix" | "import" | "relearn" | "environment";
+
+export interface SkillApp {
+  name: string;
+  version?: string;
+  os?: "linux" | "windows";
+}
+
+export interface SkillStats {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  avgMs?: number;
+  replayedSteps: number;
+  askedSteps: number;
+  lastRunAt?: string;
+  lastRunStatus?: string;
+}
+
+/** A skill in a team's library. currentVersion is the version that runs (absent while none is current). */
+export interface Skill {
+  skillId: string;
+  teamId: string;
+  ownerSubject?: string;
+  name: string;
+  description: string;
+  kind: SkillKind;
+  apps?: SkillApp[];
+  status: SkillStatus;
+  currentVersion?: number;
+  latestVersion: number;
+  stats: SkillStats;
+  rehearseWeekly?: boolean;
+  /** Who turned the weekly rehearsal on: it launches its capsules as them. */
+  rehearseBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+/** A file of a skill folder besides SKILL.md and capsulate/skill.json. */
+export interface SkillFile {
+  path: string;
+  size: number;
+  sha256: string;
+  contentType?: string;
+}
+
+export interface SkillCheckResult {
+  name: string;
+  ok: boolean;
+  error?: string;
+  ms?: number;
+}
+
+export interface SkillRehearsal {
+  runId: string;
+  status: "running" | "passed" | "failed";
+  fingerprint?: SkillCheckResult[];
+  checks?: SkillCheckResult[];
+  error?: string;
+  at: string;
+  ms?: number;
+}
+
+/** Maps a frame's own coordinates to the screen: screen = origin + scale * (x, y); clamp keeps strokes inside. */
+export interface Frame {
+  origin: [number, number];
+  scale: number;
+  clamp?: [[number, number], [number, number]];
+}
+
+export interface SkillParam {
+  type: "string" | "number" | "integer" | "boolean" | "point" | "points" | "object" | "array" | "any";
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  enum?: unknown[];
+  pattern?: string;
+}
+
+/** A step of a procedure: a run step, which may use {{param}}, `frame` and `save`, or a skill-only step (use,
+ *  ask, check, pixel, menus). */
+export type SkillStep = Record<string, unknown> & { do: string };
+
+/** A named, parameterized list of steps. */
+export interface SkillProcedure {
+  description?: string;
+  params?: Record<string, SkillParam>;
+  steps: SkillStep[];
+}
+
+export interface SkillEnvironment {
+  os?: "linux" | "windows";
+  /** A catalog template (ubuntu-22.04-desktop). */
+  image?: string;
+  /** A saved template with the software installed (preferred). */
+  snapshotId?: string;
+  size?: string;
+  /** A procedure run after a launch. */
+  setup?: string;
+  fingerprint?: Array<{ exec: string[]; contains?: string }>;
+}
+
+/** capsulate/skill.json: the part only Capsulate runs. */
+export interface SkillSpec {
+  schema?: number;
+  kind?: SkillKind;
+  apps?: SkillApp[];
+  environment?: SkillEnvironment;
+  frames?: Record<string, Frame>;
+  inputs?: Record<string, SkillParam>;
+  procedures?: Record<string, SkillProcedure>;
+  checks?: Array<{ name: string; description?: string; steps: SkillStep[] }>;
+  traps?: Array<{ title: string; detail?: string; fix?: string }>;
+}
+
+/** One immutable version of a skill's content. */
+export interface SkillVersion {
+  skillId: string;
+  teamId?: string;
+  version: number;
+  state: SkillVersionState;
+  source: SkillSource;
+  sourceRef?: string;
+  note?: string;
+  /** SKILL.md (Agent Skills, agentskills.io); empty in version lists. */
+  skillMd: string;
+  spec: SkillSpec;
+  files?: SkillFile[];
+  rehearsal?: SkillRehearsal;
+  createdBy?: string;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+/** A skill with one version's content (the current one unless another was asked for). */
+export interface SkillDetail {
+  skill: Skill;
+  version?: SkillVersion;
+}
+
+export interface SkillFileInput {
+  path: string;
+  /** Text content, or contentB64 for bytes. */
+  content?: string;
+  contentB64?: string;
+  contentType?: string;
+}
+
+/**
+ * A skill or a new version. Give the SKILL.md whole (skillMd), or name, description and instructions (its Markdown
+ * body). A new version keeps what it leaves out from its base version (default the latest). A new skill's first
+ * version is current; a later one is proposed (current only with force, skipping the rehearsal).
+ */
+export interface SkillWriteInput {
+  teamId?: string;
+  skillMd?: string;
+  name?: string;
+  description?: string;
+  instructions?: string;
+  spec?: SkillSpec;
+  files?: SkillFileInput[];
+  removeFiles?: string[];
+  note?: string;
+  state?: "draft" | "proposed" | "current";
+  force?: boolean;
+  source?: SkillSource;
+  sourceRef?: string;
+  baseVersion?: number;
+}
+
+/** A skill folder as a zip (bytes or base64), or its parts. */
+export interface SkillImportInput {
+  teamId?: string;
+  zip?: Uint8Array | ArrayBuffer;
+  zipB64?: string;
+  skillMd?: string;
+  spec?: SkillSpec;
+  files?: SkillFileInput[];
+  state?: "draft" | "proposed" | "current";
+  force?: boolean;
+  note?: string;
+}
+
+/** What a capsule launched for a skill reports: the skill and version it was launched from, and when the skill has
+ *  a setup procedure, how it went. The capsule is created either way. */
+export interface SkillLaunch {
+  skillId: string;
+  name: string;
+  version: number;
+  setup?: string;
+  /** The setup as one run step (`use`): ok, or the error of the step inside it that failed. */
+  setupResult?: { i: number; do: string; ok: boolean; result?: unknown; status?: number; code?: string; error?: string; ms: number };
+}
+
+/** Save a capsule as a skill's environment: a saved template, then a version that launches from it. */
+export interface SkillEnvironmentInput {
+  sessionId: string;
+  /** The procedure a launch runs once the capsule is ACTIVE ("" removes it; left out keeps the base version's). */
+  setup?: string;
+  /** Default the capsule's size. */
+  size?: string;
+  note?: string;
+  /** The new version's state: proposed while another version is current (current with force). */
+  state?: "draft" | "proposed" | "current";
+  force?: boolean;
+}
+
+export interface SkillEnvironmentResult {
+  snapshot: Snapshot;
+  skill: Skill;
+  version: SkillVersion;
+}
+
+/** A pixel's colour (POST /sessions/:id/pixel). */
+export interface PixelResult {
+  x: number;
+  y: number;
+  /** #rrggbb */
+  color: string;
+  r: number;
+  g: number;
+  b: number;
+}
+
+/** A menu entry; a top-level menu carries its items. */
+export interface MenuItem {
+  name: string;
+  shortcut?: string;
+  enabled: boolean;
+  checked?: boolean;
+  /** The entry opens a submenu. */
+  submenu?: boolean;
+  x?: number;
+  y?: number;
+  items?: MenuItem[];
+}
+
+/** A window's menu bar with every menu's items (POST /sessions/:id/menus). */
+export interface MenusResult {
+  window?: string;
+  menus: MenuItem[];
+}
+
+// ---- Runs (Phase SK): a skill's procedure in the background, waiting for you where run_actions stops ----
+
+export type RunStatus = "queued" | "running" | "needs_input" | "needs_help" | "succeeded" | "failed" | "cancelled";
+
+/** Start a run: on a capsule (sessionId), or launch: true to start the skill's environment for it. */
+export interface RunStartInput {
+  teamId?: string;
+  sessionId?: string;
+  skill?: string;
+  version?: number;
+  /** The procedure to run (default main) when steps are left out. */
+  procedure?: string;
+  inputs?: Record<string, unknown>;
+  /** Steps to run instead of a procedure; they may call the skill's procedures with use. */
+  steps?: Array<Record<string, unknown> & { do: string }>;
+  frames?: Record<string, { origin: [number, number]; scale: number; clamp?: [[number, number], [number, number]] }>;
+  /** Launch a capsule from the skill's environment for the run (destroyed after, unless keep). */
+  launch?: boolean;
+  keep?: boolean;
+  label?: string;
+}
+
+/** One executed step of a run. kind: replayed (as stored), asked, checked, fixed, skipped or failed. */
+export interface RunStepRecord {
+  seq: number;
+  where?: string;
+  i: number;
+  do: string;
+  kind: "replayed" | "asked" | "checked" | "fixed" | "skipped" | "failed";
+  ok: boolean;
+  error?: string;
+  ms: number;
+  result?: unknown;
+  at: string;
+}
+
+/** What a waiting run needs: an answer (reason ask) or a way past a step (step_failed, check_failed,
+ *  human_in_control, interrupted). */
+export interface RunWaiting {
+  reason: "ask" | "step_failed" | "check_failed" | "human_in_control" | "interrupted";
+  question?: string;
+  gives?: string[];
+  options?: string[];
+  context?: string;
+  where?: string;
+  step?: Record<string, unknown> & { do: string };
+  error?: string;
+  since: string;
+}
+
+export interface Run {
+  runId: string;
+  teamId: string;
+  kind: "run" | "rehearsal";
+  skillId?: string;
+  skillName?: string;
+  version?: number;
+  procedure?: string;
+  sessionId?: string;
+  launched?: boolean;
+  keep?: boolean;
+  status: RunStatus;
+  inputs?: Record<string, unknown>;
+  startedBy?: string;
+  label?: string;
+  /** The timeline (the last 500 steps), or the steps after `after`. */
+  steps?: RunStepRecord[];
+  /** Steps executed so far. */
+  done: number;
+  replayed: number;
+  asked: number;
+  fixed: number;
+  waiting?: RunWaiting;
+  outcome?: { variables?: Record<string, unknown>; proposedVersion?: number; checks?: SkillCheckResult[]; fingerprint?: SkillCheckResult[] };
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt: string;
+  /** Time spent working (waiting for you does not count). */
+  workMs: number;
+}
+
+/** Answer a waiting run: values (for an ask), steps to run instead, or action retry or skip. */
+export interface RunContinueInput {
+  values?: Record<string, unknown>;
+  steps?: Array<Record<string, unknown> & { do: string }>;
+  action?: "retry" | "skip";
+  note?: string;
+}
+
+export interface RunListOptions {
+  teamId?: string;
+  skill?: string;
+  sessionId?: string;
+  status?: RunStatus | string;
+  kind?: "run" | "rehearsal";
+  limit?: number;
+}
+
+// ---- the inbox (Phase SK): what waits for someone in a team ----
+
+export type InboxKind = "run_needs_input" | "run_needs_help" | "version_proposed" | "lesson_ready" | "rehearsal_failed" | "fingerprint_drift";
+
+export interface InboxItem {
+  kind: InboxKind;
+  id: string;
+  teamId: string;
+  skillId?: string;
+  skillName?: string;
+  version?: number;
+  runId?: string;
+  lessonId?: string;
+  title: string;
+  detail?: string;
+  at: string;
+}
+
+// ---- Lessons (Phase SK): teaching sessions a skill is learned from ----
+
+export type LessonStatus = "recording" | "paused" | "processing" | "ready" | "failed" | "discarded";
+
+export interface Lesson {
+  lessonId: string;
+  teamId: string;
+  ownerSubject?: string;
+  title: string;
+  goal?: string;
+  /** human: a person teaches on the shared screen; ai: the AI teaches itself with a goal. */
+  mode: "human" | "ai";
+  sessionId: string;
+  os?: string;
+  skillId?: string;
+  status: LessonStatus;
+  options: { video?: boolean; voice?: boolean; keyframes: boolean };
+  artifacts: {
+    /** The screen videos (Linux, when the lesson asked for video), one for each stretch it recorded (a pause ends one). */
+    recordings?: string[];
+    frames: number;
+    audioChunks?: number;
+    /** Some of the voice became text (the digest's voice). */
+    transcript?: boolean;
+    /** The voice's parts: a pause or the microphone turned off ends one. */
+    audio?: Array<{ part: number; start: number; chunks: number; last?: boolean; done?: boolean; error?: string }>;
+    envDiff?: LessonEnvDiff;
+    draftSkill?: string;
+    draftVersion?: number;
+    /** What captures the person's input: xrecord (Linux), llhook (Windows), none (the capsule cannot). */
+    recorder?: string;
+  };
+  eventCount: number;
+  error?: string;
+  startedAt: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  pausedMs?: number;
+}
+
+/** What changed on the capsule during a lesson: packages installed, files changed, applications seen. */
+export interface LessonEnvDiff {
+  packages?: string[];
+  files?: string[];
+  apps?: string[];
+}
+
+export interface LessonStartInput {
+  teamId?: string;
+  title: string;
+  /** What the lesson should achieve: the AI's goal, or what the person will show. */
+  goal?: string;
+  mode?: "human" | "ai";
+  sessionId: string;
+  /** A skill this lesson teaches or improves (name or skl_ id). */
+  skillId?: string;
+  video?: boolean;
+  /** The teacher's voice is recorded (send it with lessons.addAudio) and turned into text. */
+  voice?: boolean;
+  noKeyframes?: boolean;
+}
+
+export interface LessonEvent {
+  seq: number;
+  /** ms after the lesson started (pauses left out). */
+  t: number;
+  actor: "human" | "ai" | "system";
+  type: string;
+  data?: Record<string, unknown>;
+}
+
+/** One step of a lesson in plain words; `step` is the action as a procedure step (an AI step as it ran, a person's
+ *  from what the recorder saw: an element by its role and name where it saw one, else the place on the screen). */
+export interface DigestStep {
+  n: number;
+  t: number;
+  actor: string;
+  type: string;
+  window?: string;
+  says: string;
+  element?: { role?: string; name?: string; value?: string; x?: number; y?: number; w?: number; h?: number; path?: string[]; app?: string; window?: string; password?: boolean };
+  text?: string;
+  masked?: boolean;
+  frame?: number;
+  step?: Record<string, unknown> & { do: string };
+  ok?: boolean;
+}
+
+/** A lesson ready to be turned into a skill. */
+export interface LessonDigest {
+  lesson: Lesson;
+  steps: DigestStep[];
+  omitted?: number;
+  notes?: DigestStep[];
+  voice?: Array<{ t: number; end: number; text: string }>;
+  windows?: string[];
+  envDiff?: LessonEnvDiff;
+  frames?: number[];
+  durationMs: number;
+  /** How to turn the digest into a skill. */
+  guide: string;
 }

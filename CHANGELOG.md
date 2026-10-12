@@ -2,6 +2,14 @@
 
 All four packages share a version.
 
+## 0.7.0 (2026-10-13)
+
+- Skills: learn once, repeat in minutes. A skill is what your AI learned about doing a job on a desktop, kept as an Agent Skills folder (`SKILL.md`) plus `capsulate/skill.json`: the environment it ran in, its inputs, its procedures (steps with parameters), the checks that prove it still works and the traps it ran into. `cap.skills` in the SDK (create, versions, approve, roll back, import and export a folder or zip, save a capsule as the skill's environment, rehearse in a fresh capsule, weekly rehearsals), `capsulate_skills` in the MCP server, `cap skill` in the CLI, and the same in ai-tools.
+- Runs: a skill's procedure, or your own steps that call its procedures with `use`, run in the background (`cap.runs`, `capsulate_skill_run`, `cap skill run`). A run that needs a decision asks and waits for the answer; a step that fails waits for a retry, a skip or the steps to run instead, which become a proposed version of the skill. `cap.inbox` lists what waits for someone.
+- Lessons: teach a skill on a capsule, by the AI or by a person through the live console (`cap.lessons`, `capsulate_lesson`, `cap lesson`). Each step comes with the element it touched, typing into a password field is masked, and notes, marked regions, keyframes, a screen video on Linux and the teacher's voice (as text) are kept on the lesson's clock. The digest and a first draft turn a lesson into a skill.
+- `runActions` takes `use`, `frames` (a canvas's own coordinates, with every stroke kept inside), `pixel`, `menus`, `check` and `save`; `capsules.launch({ skill })` starts a skill's environment and runs its setup.
+- Example: `skill-krita-painting`, the skill an AI learned while painting the Mona Lisa in Krita (about an hour the first time), which paints a new picture in about two minutes.
+
 ## 0.6.0 (2026-10-12)
 
 - Quick or careful: how carefully the AI checks its work is a setting on a capsule's screen. `quick` plans the whole job and runs it in as few runs as possible, looking at the screen only when it needs to; `careful` checks after every step; `balanced` is the default. `setCare` and `ControlStatus.care` in the SDK, `capsulate_control` action `care` (the MCP server's instructions say what each means), `cap control care <id> quick`.

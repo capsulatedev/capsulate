@@ -104,6 +104,18 @@ the capsule; the tool result says to wait with `capsulate_wait_for_handback`. Re
 console is view-only for everyone else during that time and turns interactive again when the AI
 goes quiet or releases.
 
+### Skills: learn once, replay in minutes
+
+| Tool | What it does |
+| --- | --- |
+| `capsulate_lesson` | Learn a job on a capsule: a person teaches on the shared screen (clicks, keys and typing with the elements they hit, passwords masked, optionally video and voice) or the AI teaches itself toward a goal; `get` reads the digest |
+| `capsulate_skills` | The team's skills: save one from a lesson's digest, versions, approve, save an environment, rehearse, weekly rehearsals |
+| `capsulate_skill_run` | Run a skill's procedure in the background; it asks you where the skill leaves a decision open |
+| `capsulate_inbox` | Runs that wait, versions to approve, failed rehearsals and skills whose software changed |
+
+The server's instructions carry the learning protocol: explore with a goal, note what you learn, finish, read the
+digest, save the skill; next time launch its environment and run its procedure.
+
 ## Try it
 
 > "Spin up an `ubuntu-22.04-headless` capsule, run my test suite, and show me the output."

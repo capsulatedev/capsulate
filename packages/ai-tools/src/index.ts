@@ -47,6 +47,10 @@ export const CAPSULATE_GUIDANCE = [
   "Read capsulate_control first: when visible is true, the person wants to watch the whole task, so do every step on the screen.",
   "Its care says how carefully to check your work. care 'quick': plan the whole job, then send it in as few capsulate_run_actions calls as you can (up to 200 steps each) without looking between them; look at the screen only to learn what you cannot know in advance or when a step failed. care 'careful': look after every step and fix a mistake before going on. No care (balanced): look when a step matters.",
   "While a person watches and you work off the screen, say what you are doing with capsulate_say.",
+  "Skills are what you or a person taught Capsulate before: how to use an application (where things are, the steps that work, the traps) or how an expert works. Before a task in an application, list the team's skills (capsulate_skills action 'list', with a query) and read the one that fits (action 'get'): follow its instructions, reuse its procedures and avoid its traps instead of discovering the application again.",
+  "When you learned something worth keeping (an application's layout, steps you repeated, a trap you hit and how you got past it), save it (capsulate_skills action 'save'): a name and a description that says when to use it, instructions in plain words, procedures with the steps as run_actions steps using {{param}} placeholders, and traps with their fix. A new skill's first version is current; a later version is proposed until the owner approves it. Never put passwords, keys or personal data in a skill.",
+  "To learn an application: start a lesson (capsulate_lesson action 'start', mode 'ai', a goal), explore toward the goal, add a note whenever you learn something or get past a trap, then finish it, read its digest (action 'get') and save the skill (capsulate_skills action 'save').",
+  "To use a skill: launch its environment (capsulate_launch_capsule with skill), then run its procedure with capsulate_skill_run (in the background, no time limit; it asks you only where the skill leaves a decision open), or call procedures from capsulate_run_actions with {do: 'use', procedure, args}. When a run waits for help, look at the screen and continue it: retry, skip, or the steps that work instead (kept as a proposed fix).",
 ].join("\n");
 
 /** Build the Capsulate agent tool specs bound to a client (or client options). */
@@ -57,14 +61,17 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
     {
       name: "capsulate_launch_capsule",
       description:
-        "Launch a new isolated cloud sandbox (capsule) from a template and wait until it is ready. Returns the sessionId to use with other tools.",
+        "Launch a new isolated cloud sandbox (capsule) from a template and wait until it is ready. Returns the sessionId to use with other tools. " +
+        "With skill, the capsule is the skill's environment (its saved template with the software set up) and the skill's setup procedure has run.",
       parameters: z.object({
-        template: z.string().describe("Template/OS id, e.g. 'ubuntu-22.04-headless'"),
-        size: z.string().optional().describe("Resource size, default '2c4g'"),
+        template: z.string().optional().describe("Template/OS id, e.g. 'ubuntu-22.04-headless' (not needed with skill)"),
+        size: z.string().optional().describe("Resource size, default '2c4g' (or the skill's)"),
+        skill: z.string().optional().describe("Launch a skill's environment and run its setup"),
       }),
-      execute: async ({ template, size }) => {
-        const c = await cap.capsules.launch({ template, size: size ?? "2c4g" });
-        return { sessionId: c.id, status: c.status };
+      execute: async ({ template, size, skill }) => {
+        if (!template && !skill) return { ok: false, error: "bad_request", message: "give template, or skill" };
+        const c = await cap.capsules.launch({ template, size: size ?? (skill ? undefined : "2c4g"), skill });
+        return { sessionId: c.id, status: c.status, ...(c.data.skill ? { skill: c.data.skill } : {}) };
       },
     },
     {
@@ -547,14 +554,200 @@ export function capsulateToolSpecs(clientOrOpts: Capsulate | CapsulateOptions): 
         "element {action, selector, value?} (set_value, toggle, expand, invoke, select, ...), window {action, title | id} (minimize, maximize, move, resize, close, ...), open {target, waitMs?}, wait_for {condition, selector?, text?, window?, timeoutMs?} (a wait that ends unmet fails the step), screen; " +
         "the browser as browser_<verb> (browser_navigate {url}, browser_click {ref | text}, browser_fill {ref, value}, browser_wait {text}, browser_snapshot, ...); " +
         "commands and files: exec {cmd: [...], cwd?}, write_file {path, content}, read_file {path} (a text file comes back as text); " +
-        "click_element {selector: {role?, name?, text?}} (find, waiting up to 5 s, then click), say {text}, pause {ms}. " +
+        "click_element {selector: {role?, name?, text?}} (find, waiting up to 5 s, then click), say {text}, pause {ms}; " +
+        "skills: use {procedure, skill?, args?} (a procedure of a skill; the call's skill is the default), check {element | window | exec | file | pixel, timeoutMs?}, pixel {x, y}, menus {window?}. " +
+        "A step's frame: '<name>' gives its coordinates in one of the call's frames; save: {variable: resultField} keeps a result as {{variable}} for later steps. " +
         "expect on a step is a wait that must succeed after it; optional: true lets a step fail. observe returns a look at the end: 'screenshot', 'ui_tree' or 'browser_snapshot'.",
       parameters: z.object({
         sessionId: z.string(),
         steps: z.array(z.object({ do: z.string() }).passthrough()).min(1).max(200),
         observe: z.enum(["none", "screenshot", "ui_tree", "browser_snapshot"]).optional(),
+        skill: z.string().optional().describe("The skill use steps call when they name none"),
+        frames: z
+          .record(z.object({ origin: z.tuple([z.number(), z.number()]), scale: z.number(), clamp: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]).optional() }))
+          .optional()
+          .describe("Coordinate frames steps may name: screen = origin + scale * (x, y)"),
       }),
-      execute: async ({ sessionId, steps, observe }) => cap.capsules.runActions(sessionId, steps, { observe }),
+      execute: async ({ sessionId, steps, observe, skill, frames }) => cap.capsules.runActions(sessionId, steps, { observe, skill, frames }),
+    },
+    {
+      name: "capsulate_menus",
+      description:
+        "List every menu of the focused window (or the window whose title contains window) with its items, read by opening each menu and closing it again: the quick way to learn what an application can do.",
+      parameters: z.object({ sessionId: z.string(), window: z.string().optional() }),
+      execute: async ({ sessionId, window }) => cap.capsules.menus(sessionId, window),
+    },
+    // ---- skills (Phase SK): what was learned before, and what the model learned ----
+    {
+      name: "capsulate_skills",
+      description:
+        "The team's skills. action 'list' (query?) lists them; 'get' (skill, version?) reads one: its SKILL.md instructions and capsulate/skill.json (environment, frames, inputs, procedures as run_actions steps, checks, traps), so you do not discover the application again. " +
+        "'save' keeps what you learned: skillMd (a whole SKILL.md) or name + description (what it does and when to use it) + instructions, plus spec and files; it creates the skill or adds a proposed version. " +
+        "'versions' (skill); 'approve' (skill, version, force?) makes one current; 'reject', 'rollback' (skill, version). " +
+        "'environment' (skill, sessionId, setup?) saves the capsule as the skill's environment once the software is set up: a saved template, and a version that launches from it (capsulate_launch_capsule with skill). " +
+        "'rehearse' (skill, version, sessionId?, keep?) proves a version in a fresh capsule (its fingerprint and checks; follow the run with capsulate_skill_run get); 'weekly' (skill, on) rehearses the current version every week.",
+      parameters: z.object({
+        action: z.enum(["list", "get", "save", "versions", "approve", "reject", "rollback", "environment", "rehearse", "weekly"]),
+        skill: z.string().optional(),
+        query: z.string().optional(),
+        version: z.number().int().positive().optional(),
+        skillMd: z.string().optional(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        instructions: z.string().optional(),
+        spec: z.record(z.any()).optional(),
+        files: z.array(z.object({ path: z.string(), content: z.string().optional(), contentB64: z.string().optional() })).optional(),
+        note: z.string().optional(),
+        state: z.enum(["draft", "proposed", "current"]).optional(),
+        force: z.boolean().optional(),
+        sessionId: z.string().optional().describe("For environment: the capsule to save"),
+        setup: z.string().optional().describe("For environment: the procedure a launch runs once the capsule is ACTIVE"),
+        keep: z.boolean().optional(),
+        on: z.boolean().optional(),
+      }),
+      execute: async (a) => {
+        const name = a.skill ?? "";
+        if (a.action !== "list" && a.action !== "save" && !name) return { ok: false, error: "bad_request", message: `${a.action} needs skill (its name)` };
+        if ((a.action === "approve" || a.action === "reject" || a.action === "rollback") && !a.version) {
+          return { ok: false, error: "bad_request", message: `${a.action} needs version` };
+        }
+        switch (a.action) {
+          case "list":
+            return cap.skills.list({ q: a.query });
+          case "get":
+            return cap.skills.get(name, { version: a.version });
+          case "save":
+            return cap.skills.save({
+              skillMd: a.skillMd, name: a.name, description: a.description, instructions: a.instructions,
+              spec: a.spec as never, files: a.files, note: a.note, state: a.state, force: a.force,
+            });
+          case "versions":
+            return cap.skills.versions(name);
+          case "approve":
+            return cap.skills.approve(name, a.version!, { force: a.force, note: a.note });
+          case "reject":
+            return cap.skills.reject(name, a.version!);
+          case "rollback":
+            return cap.skills.rollback(name, a.version!);
+          case "environment":
+            if (!a.sessionId) return { ok: false, error: "bad_request", message: "environment needs sessionId" };
+            return cap.skills.environment(name, { sessionId: a.sessionId, setup: a.setup, note: a.note, state: a.state, force: a.force });
+          case "rehearse":
+            if (!a.version) return { ok: false, error: "bad_request", message: "rehearse needs version" };
+            return cap.skills.rehearse(name, a.version, { sessionId: a.sessionId, keep: a.keep });
+          case "weekly":
+            if (a.on === undefined) return { ok: false, error: "bad_request", message: "weekly needs on" };
+            return cap.skills.setWeekly(name, a.on);
+        }
+      },
+    },
+    {
+      name: "capsulate_lesson",
+      description:
+        "A lesson records how a job is done on a capsule so it can become a skill: while it records, every action taken there through the API is logged in full, and a person's clicks, keys and typing on the shared screen are recorded with the elements they hit (typing in a password field is masked). action 'start' (sessionId, title, goal?, mode 'ai' or 'human'), 'note' (lessonId, text, screenshot?), 'pause', 'resume', 'finish', 'discard' (lessonId), 'get' (lessonId: the digest once finished, the steps in plain words each with the step that does it again), 'draft' (lessonId, skill?, description?), 'on' (sessionId: the lesson recording on a capsule), 'list'.",
+      parameters: z.object({
+        action: z.enum(["start", "note", "pause", "resume", "finish", "discard", "get", "draft", "on", "list"]),
+        lessonId: z.string().optional(),
+        sessionId: z.string().optional(),
+        title: z.string().optional(),
+        goal: z.string().optional(),
+        mode: z.enum(["ai", "human"]).optional(),
+        video: z.boolean().optional(),
+        voice: z.boolean().optional(),
+        skill: z.string().optional(),
+        text: z.string().optional(),
+        screenshot: z.boolean().optional(),
+        description: z.string().optional(),
+        status: z.string().optional(),
+      }),
+      execute: async (a) => {
+        const id = a.lessonId ?? "";
+        if (!["start", "list", "on"].includes(a.action) && !id) return { ok: false, error: "bad_request", message: `${a.action} needs lessonId` };
+        switch (a.action) {
+          case "start":
+            if (!a.sessionId || !a.title) return { ok: false, error: "bad_request", message: "start needs sessionId and title" };
+            return cap.lessons.start({ sessionId: a.sessionId, title: a.title, goal: a.goal, mode: a.mode ?? "ai", skillId: a.skill, video: a.video, voice: a.voice });
+          case "note":
+            if (!a.text) return { ok: false, error: "bad_request", message: "note needs text" };
+            return cap.lessons.note(id, a.text, { screenshot: a.screenshot });
+          case "pause":
+            return cap.lessons.pause(id);
+          case "resume":
+            return cap.lessons.resume(id);
+          case "finish":
+            return cap.lessons.finish(id);
+          case "discard":
+            await cap.lessons.discard(id);
+            return { ok: true };
+          case "get": {
+            const l = await cap.lessons.get(id);
+            return l.status === "recording" || l.status === "paused" ? l : cap.lessons.digest(id);
+          }
+          case "draft":
+            return cap.lessons.draft(id, { skill: a.skill, description: a.description });
+          case "on":
+            if (!a.sessionId) return { ok: false, error: "bad_request", message: "on needs sessionId" };
+            return (await cap.lessons.onCapsule(a.sessionId)) ?? { lesson: null };
+          case "list":
+            return cap.lessons.list({ status: a.status });
+        }
+      },
+    },
+    {
+      name: "capsulate_inbox",
+      description:
+        "The team's inbox: runs that ask a question or are stuck on a step, versions waiting for approval, versions whose rehearsal failed, and skills whose software changed.",
+      parameters: z.object({}),
+      execute: async () => cap.inbox.list(),
+    },
+    // ---- runs (Phase SK): a skill's procedure in the background ----
+    {
+      name: "capsulate_skill_run",
+      description:
+        "Run a skill's procedure (or steps that call its procedures) in the background, with no time limit. action 'start' (sessionId, skill, procedure? default main, inputs?, steps?; or launch: true to start the skill's environment) starts it and waits up to waitMs (default 20000) for it to end or to need you; 'get' (runId, waitMs?); 'continue' (runId with values answering its question, or continueAction 'retry' or 'skip', or steps to run instead of a stuck step, kept as a proposed fix); 'cancel' (runId); 'list' (skill?, status?). " +
+        "A run that needs you has status needs_input (waiting.question, waiting.gives) or needs_help (waiting.step, waiting.error).",
+      parameters: z.object({
+        action: z.enum(["start", "get", "continue", "cancel", "list"]),
+        runId: z.string().optional(),
+        sessionId: z.string().optional(),
+        skill: z.string().optional(),
+        procedure: z.string().optional(),
+        inputs: z.record(z.any()).optional(),
+        steps: z.array(z.object({ do: z.string() }).passthrough()).optional(),
+        launch: z.boolean().optional(),
+        keep: z.boolean().optional(),
+        values: z.record(z.any()).optional(),
+        continueAction: z.enum(["retry", "skip"]).optional(),
+        note: z.string().optional(),
+        status: z.string().optional(),
+        waitMs: z.number().int().min(0).max(25000).optional(),
+      }),
+      execute: async (a) => {
+        const settle = async (runId: string, waitMs: number) => {
+          const deadline = Date.now() + waitMs;
+          let r = await cap.runs.get(runId, { waitMs: Math.min(waitMs, 25000) });
+          while (!["succeeded", "failed", "cancelled", "needs_input", "needs_help"].includes(r.status) && Date.now() < deadline) {
+            r = await cap.runs.get(runId, { waitMs: Math.min(deadline - Date.now(), 25000) });
+          }
+          return r;
+        };
+        if (a.action !== "start" && a.action !== "list" && !a.runId) return { ok: false, error: "bad_request", message: `${a.action} needs runId` };
+        switch (a.action) {
+          case "start": {
+            const run = await cap.runs.start({ sessionId: a.sessionId, skill: a.skill, procedure: a.procedure, inputs: a.inputs, steps: a.steps as never, launch: a.launch, keep: a.keep });
+            return settle(run.runId, a.waitMs ?? 20000);
+          }
+          case "get":
+            return a.waitMs ? settle(a.runId!, a.waitMs) : cap.runs.get(a.runId!);
+          case "continue":
+            await cap.runs.continue(a.runId!, { values: a.values, steps: a.steps as never, action: a.continueAction, note: a.note });
+            return settle(a.runId!, a.waitMs ?? 20000);
+          case "cancel":
+            return cap.runs.cancel(a.runId!);
+          case "list":
+            return cap.runs.list({ skill: a.skill, status: a.status });
+        }
+      },
     },
   ];
   return specs.map((s) => ({ ...s, inputSchema: s.parameters }));

@@ -2,6 +2,12 @@
 
 `@capsulate/mcp`. The four doorway packages (sdk, cli, mcp, ai-tools) share a version.
 
+## 0.7.0 (2026-10-13)
+
+- `capsulate_skills`: the team's skills (list, get, save, versions, approve, environment, rehearse, weekly). `capsulate_skill_run` runs a skill's procedure in the background and answers its questions; `capsulate_inbox` lists what waits.
+- `capsulate_lesson`: learn a skill on a capsule (start, note, pause, resume, finish, discard, get the digest, draft, on, list), with the learning protocol in the server's instructions; `video` and `voice` on start.
+- `capsulate_launch` takes `skill`; `capsulate_run_actions` takes `use` steps.
+
 ## 0.6.0 (2026-10-12)
 
 - `capsulate_drag` takes a `path` of `[x, y]` points, with `smooth`, `closed` and `stepMs`: curves, circles and any shape a hand draws (eight points on a circle with smooth and closed make a round circle). The button is honoured.

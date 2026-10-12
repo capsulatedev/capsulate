@@ -79,6 +79,14 @@ function detail(s: RunStepResult): string {
       return `${r.width}x${r.height}, pointer at ${r.cursor?.x}, ${r.cursor?.y}${r.activeWindow ? `, active ${win(r.activeWindow)}` : ""}`;
     case "clipboard":
       return compact(r.text ?? "");
+    case "use":
+      return `${r.skill}:${r.procedure} (version ${r.version}, ${r.steps} steps)`;
+    case "check":
+      return String(r.detail ?? "");
+    case "pixel":
+      return `${r.color} at ${r.x}, ${r.y}`;
+    case "menus":
+      return "\n" + menusText(r);
     case "screenshot":
     case "browser_screenshot":
       return "(image below)";
@@ -98,6 +106,23 @@ function detail(s: RunStepResult): string {
     default:
       return compact(r);
   }
+}
+
+/** A window's menus, one line per menu. */
+export function menusText(r: any): string {
+  const menus: any[] = r?.menus ?? [];
+  if (!menus.length) return "(no menus)";
+  return clip(
+    menus
+      .map(
+        (m) =>
+          `${m.name}${m.enabled === false ? " (disabled)" : ""}: ` +
+          ((m.items ?? []) as any[])
+            .map((it) => `${it.name}${it.submenu ? " >" : ""}${it.checked ? " [x]" : ""}${it.enabled ? "" : " (disabled)"}`)
+            .join(", "),
+      )
+      .join("\n"),
+  );
 }
 
 function imageOf(s: RunStepResult | undefined): Content | null {
@@ -122,6 +147,7 @@ export function runReport(r: RunActionsResult): Content[] {
     if (s.ok && s.expect) l += " (expect met)";
     lines.push(l);
   }
+  if (r.variables && Object.keys(r.variables).length) lines.push(`Saved: ${compact(r.variables)}`);
   if (r.stopReason === "human_in_control") {
     lines.push("A person holds the screen. Call capsulate_wait_for_handback, then run the remaining steps.");
   } else if (r.stopReason === "time_budget") {
@@ -140,7 +166,24 @@ export const ACTIONS_INSTRUCTIONS =
   "When you know the next few steps (fill a form, click through a dialog, type then save), send them together with capsulate_run_actions: one call, the steps run back to back, the person watching sees one smooth motion, and the run stops at the first step that fails. Steps can mix commands and files with the screen (write_file, then open it to show it). Add expect to a step to wait for what should follow it, and observe 'screenshot' or 'browser_snapshot' to see the result in the same call.";
 
 export function registerActionTools(t: ToolKit) {
-  const { server, cap, err } = t;
+  const { server, cap, ok, err } = t;
+  server.registerTool(
+    "capsulate_menus",
+    {
+      title: "List an application's menus",
+      description:
+        "List every menu of the focused window (or the window whose title contains window) with its items, read by opening each menu and closing it again. The quick way to learn what an application can do before you explore it; it takes a few seconds and the person watching sees the menus open.",
+      inputSchema: { sessionId: z.string(), window: z.string().optional() },
+    },
+    async (a) => {
+      try {
+        const r = await cap.capsules.menus(a.sessionId, a.window);
+        return ok(`Menus of ${r.window ?? "the focused window"}:\n${menusText(r)}`);
+      } catch (e) {
+        return err(e);
+      }
+    },
+  );
   server.registerTool(
     "capsulate_run_actions",
     {
@@ -152,7 +195,9 @@ export function registerActionTools(t: ToolKit) {
         "without coordinates: element {action, selector, value?, window?} (action set_value, clear, toggle, expand, collapse, invoke, select, focus or scroll_into_view), window {action, title | id, x?, y?, w?, h?} (minimize, maximize, restore, close, move, resize), open {target, kind?, waitMs?}, wait_for {condition, selector?, window?, text?, timeoutMs?, stableMs?} (present, absent, enabled, text, window, screen_stable; a wait that ends unmet fails the step), screen (its size, the pointer, the active window);",
         "browser: browser_open {url}, browser_navigate {url}, browser_snapshot, browser_click {ref | text | selector}, browser_fill {ref, value, submit?}, browser_select {ref, option}, browser_press {keys}, browser_scroll {dy}, browser_wait {text | ref, state?}, browser_text, browser_eval {expression}, browser_screenshot;",
         "commands and files: exec {cmd: [...], cwd?, timeoutSec?}, write_file {path, content}, read_file {path, maxBytes?} (a text file comes back as text); they also run while a person holds the screen;",
-        "helpers: click_element {selector: {role?, name?, text?}, waitMs?} (find, waiting up to 5 s, then click its centre), say {text} (narrate for the person watching), pause {ms}.",
+        "helpers: click_element {selector: {role?, name?, text?}, waitMs?} (find, waiting up to 5 s, then click its centre), say {text} (narrate for the person watching), pause {ms};",
+        "skills: use {procedure, skill?, version?, args?} (run a procedure of a skill from capsulate_skills with its args; the call's skill is the default), check {element: selector, present?} | {window: title} | {exec: [...], exitCode?, contains?} | {file, contains?} | {pixel: {x, y, color, tolerance?}} (with timeoutMs? it waits; a check that does not hold fails), pixel {x, y} (a pixel's colour), menus {window?} (every menu's items).",
+        "A step can say frame: '<name>' to give its coordinates in a frame of the call's frames (screen = origin + scale * (x, y), a stroke clamped inside clamp), and save: {variable: resultField} to keep a result for later steps as {{variable}}.",
         "Any step can carry expect (a wait that must succeed after it: {selector, timeoutMs} after a screen step, {text | ref | selector, timeoutMs} after a browser step) and optional: true (may fail without stopping the run).",
         "observe returns a look at the end, also when the run stopped early: 'screenshot', 'ui_tree' or 'browser_snapshot'. At most 200 steps and 90 s per call. Never put passwords or other secrets in steps; hand those to the person (capsulate_handoff).",
       ].join(" "),
@@ -163,11 +208,22 @@ export function registerActionTools(t: ToolKit) {
           .min(1)
           .max(200),
         observe: z.enum(["none", "screenshot", "ui_tree", "browser_snapshot"]).optional(),
+        skill: z.string().optional().describe("The skill use steps call when they name none"),
+        frames: z
+          .record(
+            z.object({
+              origin: z.tuple([z.number(), z.number()]),
+              scale: z.number(),
+              clamp: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]).optional(),
+            }),
+          )
+          .optional()
+          .describe("Coordinate frames steps may name, e.g. {canvas: {origin: [346, 176], scale: 0.42, clamp: [[0, 0], [900, 1200]]}}"),
       },
     },
     async (a) => {
       try {
-        const r = await cap.capsules.runActions(a.sessionId, a.steps as any, { observe: a.observe });
+        const r = await cap.capsules.runActions(a.sessionId, a.steps as any, { observe: a.observe, skill: a.skill, frames: a.frames });
         return { content: runReport(r) };
       } catch (e) {
         return err(e);

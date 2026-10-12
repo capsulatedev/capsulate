@@ -1,0 +1,312 @@
+{
+  "schema": 1,
+  "kind": "tool",
+  "apps": [{ "name": "Krita", "version": "5.0.2", "os": "linux" }],
+  "environment": {
+    "os": "linux",
+    "image": "ubuntu-22.04-desktop",
+    "size": "4c8g",
+    "setup": "setup",
+    "fingerprint": [{ "exec": ["dpkg-query", "-W", "-f", "${Version}", "krita"], "contains": "5.0.2" }]
+  },
+  "frames": {
+    "canvas": { "origin": [346, 176], "scale": 0.42, "clamp": [[-6, -4], [906, 1204]] }
+  },
+  "inputs": {
+    "sky": { "type": "string", "description": "The colour at the top of the sky", "default": "#2c3e73", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "glow": { "type": "string", "description": "The colour of the sky at the horizon", "default": "#f6b26b", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "sun": { "type": "string", "description": "The colour of the sun and its reflection", "default": "#ffd27a", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "sea": { "type": "string", "description": "The colour of the sea", "default": "#1f4e79", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "file": { "type": "string", "description": "The PNG to export into ~/Pictures", "default": "sunset.png", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\\.png$" }
+  },
+  "procedures": {
+    "main": {
+      "description": "Paint a small sunset over the sea and export it: a quick proof that the skill works, about a minute",
+      "steps": [
+        { "do": "say", "text": "A sunset over the sea, painted with the krita-painting skill." },
+        { "do": "use", "procedure": "color", "args": { "hex": "{{glow}}" } },
+        { "do": "use", "procedure": "fill_canvas" },
+        { "do": "use", "procedure": "color", "args": { "hex": "{{sky}}" } },
+        { "do": "use", "procedure": "gradient", "args": { "from": [450, 0], "to": [450, 700] } },
+        { "do": "use", "procedure": "color", "args": { "hex": "{{sun}}" } },
+        { "do": "use", "procedure": "fill", "args": { "path": [[450, 545], [517, 573], [545, 640], [517, 707], [450, 735], [383, 707], [355, 640], [383, 573]] } },
+        { "do": "use", "procedure": "color", "args": { "hex": "{{sea}}" } },
+        { "do": "use", "procedure": "fill", "args": { "path": [[-10, 700], [910, 700], [910, 1210], [-10, 1210]], "smooth": false } },
+        { "do": "use", "procedure": "brush", "args": { "preset": "Bristles-2", "size": 14 } },
+        { "do": "use", "procedure": "color", "args": { "hex": "{{sun}}" } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[360, 725], [450, 722], [540, 725]] } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[380, 760], [450, 757], [520, 760]] } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[400, 800], [450, 798], [500, 800]] } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[420, 845], [450, 843], [480, 845]] } },
+        { "do": "use", "procedure": "brush", "args": { "preset": "Fineliner", "size": 3 } },
+        { "do": "use", "procedure": "color", "args": { "hex": "#1b1b2f" } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[200, 300], [225, 285], [245, 302], [265, 285], [290, 300]] } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[640, 220], [658, 210], [672, 222], [686, 210], [704, 220]] } },
+        { "do": "use", "procedure": "export", "args": { "file": "{{file}}" } }
+      ]
+    },
+    "setup": {
+      "description": "Install Krita 5.0.2 if needed, start it with a 900x1200 canvas, maximize it and set the view to 42% so the canvas matches the frame",
+      "steps": [
+        { "do": "say", "text": "Getting Krita ready: a 900 by 1200 canvas." },
+        { "do": "exec", "cmd": ["bash", "-lc", "command -v krita >/dev/null || sudo bash -c 'apt-get update -o DPkg::Lock::Timeout=120 >/tmp/krita-install.log 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y -o DPkg::Lock::Timeout=120 --no-install-recommends krita krita-data >>/tmp/krita-install.log 2>&1'; command -v krita"], "timeoutSec": 480 },
+        { "do": "check", "exec": ["bash", "-lc", "command -v krita"] },
+        { "do": "exec", "cmd": ["bash", "-lc", "pgrep -x krita >/dev/null || (nohup env QT_ACCESSIBILITY=1 QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 krita --nosplash --new-image RGBA,U8,900,1200 >/tmp/krita.log 2>&1 &); echo started"], "timeoutSec": 20 },
+        { "do": "wait_for", "condition": "window", "window": "Krita", "timeoutMs": 60000 },
+        { "do": "wait_for", "condition": "screen_stable", "stableMs": 2000, "timeoutMs": 45000 },
+        { "do": "use", "procedure": "view" }
+      ]
+    },
+    "view": {
+      "description": "Maximize Krita, fit the page, then zoom to 42%: the canvas then sits at the frame's origin with a margin, and the brush tool is active",
+      "steps": [
+        { "do": "window", "action": "maximize", "title": "Krita" },
+        { "do": "wait_for", "condition": "screen_stable", "stableMs": 1200, "timeoutMs": 15000 },
+        { "do": "click", "x": 1159, "y": 735 },
+        { "do": "pause", "ms": 400 },
+        { "do": "key", "keys": ["Home"] },
+        { "do": "key", "keys": ["Down"] },
+        { "do": "key", "keys": ["Return"] },
+        { "do": "pause", "ms": 500 },
+        { "do": "click", "x": 1090, "y": 735 },
+        { "do": "pause", "ms": 300 },
+        { "do": "key", "keys": ["ctrl+a"] },
+        { "do": "type", "text": "42%" },
+        { "do": "key", "keys": ["Return"] },
+        { "do": "pause", "ms": 600 },
+        { "do": "click", "x": 12, "y": 200 },
+        { "do": "pause", "ms": 120 }
+      ]
+    },
+    "color": {
+      "description": "Set the foreground colour (what fills, strokes and the gradient use) through the colour dialog's hex field",
+      "params": { "hex": { "type": "string", "required": true, "description": "#rrggbb", "pattern": "^#[0-9a-fA-F]{6}$" } },
+      "steps": [
+        { "do": "click", "x": 275, "y": 97 },
+        { "do": "wait_for", "condition": "window", "window": "Select a Color", "timeoutMs": 4000 },
+        { "do": "window", "action": "move", "title": "Select a Color", "x": 380, "y": 120 },
+        { "do": "pause", "ms": 150 },
+        { "do": "click", "x": 802, "y": 555 },
+        { "do": "key", "keys": ["ctrl+a"] },
+        { "do": "type", "text": "{{hex}}" },
+        { "do": "key", "keys": ["Tab"] },
+        { "do": "click", "x": 833, "y": 586 },
+        { "do": "pause", "ms": 150 }
+      ]
+    },
+    "brush": {
+      "description": "Pick a brush preset by name and set its size in canvas pixels (also selects the brush tool; a preset brings its own opacity)",
+      "params": {
+        "preset": {
+          "type": "string", "required": true,
+          "description": "Airbrush (soft shading, haze), Basic-1 (round, hard), Pencil-2, Fineliner, Gpen (ink), Bristles-1 (fine bristles), Bristles-2 (flat, rough), Bristles-3 (large, smooth), Wet Paint, Watercolor Texture, Chalk Soft, Stamp Grass, Stamp Leaves, Stylised Tree, Starfield",
+          "enum": ["Airbrush", "Basic-1", "Pencil-2", "Fineliner", "Gpen", "Bristles-1", "Bristles-2", "Bristles-3", "Wet Paint", "Watercolor Texture", "Chalk Soft", "Stamp Grass", "Stamp Leaves", "Stylised Tree", "Starfield"]
+        },
+        "size": { "type": "integer", "required": true, "description": "Brush size in canvas pixels, 1 to 1000" }
+      },
+      "steps": [
+        { "do": "click", "x": 12, "y": 200 },
+        { "do": "pause", "ms": 120 },
+        { "do": "click", "x": 1100, "y": 707 },
+        { "do": "key", "keys": ["ctrl+a"] },
+        { "do": "type", "text": "{{preset}}" },
+        { "do": "pause", "ms": 450 },
+        { "do": "click", "x": 1050, "y": 635 },
+        { "do": "pause", "ms": 200 },
+        { "do": "element", "action": "set_value", "selector": { "role": "spinbutton", "text": "Size:" }, "value": "{{size}}" }
+      ]
+    },
+    "size": {
+      "description": "Change the brush size, in canvas pixels (about 3 seconds: plan few size changes)",
+      "params": { "px": { "type": "integer", "required": true } },
+      "steps": [
+        { "do": "element", "action": "set_value", "selector": { "role": "spinbutton", "text": "Size:" }, "value": "{{px}}" }
+      ]
+    },
+    "opacity": {
+      "description": "Change the brush opacity, 1 to 100 percent (picking a preset resets it)",
+      "params": { "percent": { "type": "integer", "required": true } },
+      "steps": [
+        { "do": "element", "action": "set_value", "selector": { "role": "spinbutton", "text": "Opacity:" }, "value": "{{percent}}" }
+      ]
+    },
+    "fill": {
+      "description": "Fill a shape with the foreground colour: lasso its outline (canvas pixels, closed for you), fill, deselect, back to the brush tool",
+      "params": {
+        "path": { "type": "points", "required": true, "description": "The outline in canvas pixels, at least 3 points" },
+        "smooth": { "type": "boolean", "default": true, "description": "A smooth curve through the points (false: straight edges)" }
+      },
+      "steps": [
+        { "do": "key", "keys": ["ctrl+shift+a"] },
+        { "do": "pause", "ms": 150 },
+        { "do": "click", "x": 36, "y": 537 },
+        { "do": "pause", "ms": 120 },
+        { "do": "drag", "path": "{{path}}", "smooth": "{{smooth}}", "closed": true, "stepMs": 5, "frame": "canvas" },
+        { "do": "pause", "ms": 300 },
+        { "do": "key", "keys": ["shift+BackSpace"] },
+        { "do": "pause", "ms": 150 },
+        { "do": "key", "keys": ["ctrl+shift+a"] },
+        { "do": "click", "x": 12, "y": 200 },
+        { "do": "pause", "ms": 120 }
+      ]
+    },
+    "fill_canvas": {
+      "description": "Fill the whole canvas with the foreground colour",
+      "steps": [
+        { "do": "key", "keys": ["ctrl+shift+a"] },
+        { "do": "pause", "ms": 300 },
+        { "do": "key", "keys": ["shift+BackSpace"] },
+        { "do": "pause", "ms": 300 }
+      ]
+    },
+    "mask": {
+      "description": "Select a shape (canvas pixels) and keep it selected: the strokes after it only paint inside, until clear_mask or the next fill or mask",
+      "params": {
+        "path": { "type": "points", "required": true },
+        "smooth": { "type": "boolean", "default": true }
+      },
+      "steps": [
+        { "do": "key", "keys": ["ctrl+shift+a"] },
+        { "do": "pause", "ms": 150 },
+        { "do": "click", "x": 36, "y": 537 },
+        { "do": "pause", "ms": 120 },
+        { "do": "drag", "path": "{{path}}", "smooth": "{{smooth}}", "closed": true, "stepMs": 5, "frame": "canvas" },
+        { "do": "pause", "ms": 300 },
+        { "do": "click", "x": 12, "y": 200 },
+        { "do": "pause", "ms": 120 }
+      ]
+    },
+    "clear_mask": {
+      "description": "Drop the selection, so strokes paint anywhere again",
+      "steps": [{ "do": "key", "keys": ["ctrl+shift+a"] }, { "do": "pause", "ms": 150 }]
+    },
+    "stroke": {
+      "description": "Paint a stroke along a path in canvas pixels with the current brush, colour, size and opacity: a smooth line through the points, sampled every few pixels (two points give a straight line)",
+      "params": {
+        "path": { "type": "points", "required": true, "description": "At least 2 points in canvas pixels" }
+      },
+      "steps": [
+        { "do": "drag", "path": "{{path}}", "smooth": true, "frame": "canvas" }
+      ]
+    },
+    "dab": {
+      "description": "One touch of the brush at a point in canvas pixels (an eye's pupil, a star, a highlight)",
+      "params": { "x": { "type": "number", "required": true }, "y": { "type": "number", "required": true } },
+      "steps": [{ "do": "click", "x": "{{x}}", "y": "{{y}}", "frame": "canvas" }]
+    },
+    "gradient": {
+      "description": "A linear gradient from the foreground colour at from to transparent at to, over what is painted (inside the mask when there is one)",
+      "params": { "from": { "type": "point", "required": true }, "to": { "type": "point", "required": true } },
+      "steps": [
+        { "do": "click", "x": 12, "y": 381 },
+        { "do": "pause", "ms": 120 },
+        { "do": "drag", "path": ["{{from}}", "{{to}}"], "frame": "canvas" },
+        { "do": "pause", "ms": 300 },
+        { "do": "click", "x": 12, "y": 200 },
+        { "do": "pause", "ms": 120 }
+      ]
+    },
+    "undo": {
+      "description": "Take back the last step in Krita's history (a deselect is a step of its own: a fill takes three undos, a stroke after a fill one)",
+      "steps": [{ "do": "key", "keys": ["ctrl+z"] }, { "do": "pause", "ms": 300 }]
+    },
+    "export": {
+      "description": "Export the painting as a 900x1200 PNG into /home/capsulate/Pictures (an older file of that name is replaced)",
+      "params": { "file": { "type": "string", "required": true, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\\.png$" } },
+      "steps": [
+        { "do": "exec", "cmd": ["rm", "-f", "/home/capsulate/Pictures/{{file}}"], "timeoutSec": 10 },
+        { "do": "click", "x": 21, "y": 72 },
+        { "do": "pause", "ms": 400 },
+        { "do": "click_element", "selector": { "role": "menu item", "name": "Export..." }, "waitMs": 4000 },
+        { "do": "wait_for", "condition": "window", "window": "Exporting", "timeoutMs": 8000 },
+        { "do": "click_element", "selector": { "role": "text", "name": "File name:" }, "window": "Exporting", "waitMs": 3000 },
+        { "do": "key", "keys": ["ctrl+a"] },
+        { "do": "type", "text": "/home/capsulate/Pictures/{{file}}" },
+        { "do": "key", "keys": ["Return"] },
+        { "do": "wait_for", "condition": "window", "window": "PNG", "timeoutMs": 8000 },
+        { "do": "click_element", "selector": { "role": "button", "name": "OK" }, "window": "PNG", "waitMs": 3000 },
+        { "do": "check", "file": "/home/capsulate/Pictures/{{file}}", "timeoutMs": 15000 }
+      ]
+    }
+  },
+  "checks": [
+    {
+      "name": "The canvas sits where the frame says",
+      "description": "A new canvas is white inside the frame and Krita's grey around it",
+      "steps": [
+        { "do": "check", "pixel": { "x": 450, "y": 600, "color": "#ffffff", "tolerance": 8 }, "frame": "canvas" },
+        { "do": "check", "pixel": { "x": 2, "y": 2, "color": "#ffffff", "tolerance": 8 }, "frame": "canvas" },
+        { "do": "check", "pixel": { "x": 897, "y": 1197, "color": "#ffffff", "tolerance": 8 }, "frame": "canvas" },
+        { "do": "check", "pixel": { "x": -20, "y": 600, "color": "#808080", "tolerance": 8 }, "frame": "canvas" },
+        { "do": "check", "pixel": { "x": 920, "y": 600, "color": "#808080", "tolerance": 8 }, "frame": "canvas" }
+      ]
+    },
+    {
+      "name": "A fill and a stroke land where they should",
+      "steps": [
+        { "do": "use", "procedure": "color", "args": { "hex": "#c0392b" } },
+        { "do": "use", "procedure": "fill", "args": { "path": [[100, 100], [300, 100], [300, 300], [100, 300]], "smooth": false } },
+        { "do": "check", "pixel": { "x": 200, "y": 200, "color": "#c0392b", "tolerance": 12 }, "frame": "canvas" },
+        { "do": "check", "pixel": { "x": 400, "y": 200, "color": "#ffffff", "tolerance": 8 }, "frame": "canvas" },
+        { "do": "use", "procedure": "brush", "args": { "preset": "Basic-1", "size": 24 } },
+        { "do": "use", "procedure": "color", "args": { "hex": "#2e86c1" } },
+        { "do": "use", "procedure": "stroke", "args": { "path": [[100, 800], [450, 800], [800, 800]] } },
+        { "do": "check", "pixel": { "x": 450, "y": 800, "color": "#2e86c1", "tolerance": 24 }, "frame": "canvas" }
+      ]
+    },
+    {
+      "name": "main paints a sunset and exports it",
+      "steps": [
+        { "do": "use", "procedure": "main", "args": { "file": "rehearsal.png" } },
+        { "do": "check", "pixel": { "x": 450, "y": 5, "color": "#2c3e73", "tolerance": 30 }, "frame": "canvas" },
+        { "do": "check", "pixel": { "x": 450, "y": 1100, "color": "#1f4e79", "tolerance": 12 }, "frame": "canvas" },
+        { "do": "check", "exec": ["file", "/home/capsulate/Pictures/rehearsal.png"], "contains": "PNG image data, 900 x 1200" }
+      ]
+    }
+  ],
+  "traps": [
+    {
+      "title": "A lasso pressed inside the current selection moves that selection",
+      "detail": "Krita treats a press inside a selection as a move: while painting the Mona Lisa, the river's lasso dragged the hills' selection and the fill flooded the hills.",
+      "fix": "fill and mask deselect (Ctrl+Shift+A) before every lasso, so each outline starts a new selection."
+    },
+    {
+      "title": "The view scrolls when a drag nears the window's edge",
+      "detail": "A curve that overshot and a lasso along the canvas's bottom row both made Krita scroll the view; every coordinate after that landed shifted.",
+      "fix": "The view sits at 42% with a margin around the canvas, and the canvas frame clamps every point (smooth curves are sampled first, then clamped)."
+    },
+    {
+      "title": "Deselect from the Select menu is greyed out with nothing selected, and keeps the menu open",
+      "detail": "The open menu then swallows the next click.",
+      "fix": "Deselect with the keyboard (Ctrl+Shift+A): harmless when nothing is selected."
+    },
+    {
+      "title": "The colour dialog opens in a different place each time",
+      "fix": "color moves it to a fixed spot before typing the hex value."
+    },
+    {
+      "title": "Painting with a selection only paints inside it",
+      "detail": "After a lasso fill, the next strokes were confined to the filled shape.",
+      "fix": "fill ends with a deselect; mask keeps its selection on purpose until clear_mask."
+    },
+    {
+      "title": "The gradient goes from the foreground colour to transparent, not to the background colour",
+      "fix": "Fill the canvas with the far colour first (fill_canvas), then lay the gradient over it."
+    },
+    {
+      "title": "A stroke given as bare points paints only where the pointer stops",
+      "detail": "Krita's brush paints along the pointer's motion: a two-point stroke sent as two points left small marks instead of a line.",
+      "fix": "stroke always samples a smooth line through the points, every few pixels."
+    },
+    {
+      "title": "A fill sent right after the lasso does nothing",
+      "detail": "Krita builds the lasso selection a moment after the mouse is released: 5 of 6 fills sent 100 ms after the release found no selection and painted nothing; at 250 ms, 6 of 6 filled.",
+      "fix": "fill and mask wait 300 ms after the lasso before the selection is used."
+    },
+    {
+      "title": "Each size or opacity change takes about 3 seconds",
+      "detail": "The value is set through the accessibility tree.",
+      "fix": "Group the strokes by brush and size, and change them rarely."
+    }
+  ]
+}

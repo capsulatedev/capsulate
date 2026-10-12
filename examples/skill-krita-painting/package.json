@@ -1,0 +1,19 @@
+{
+  "name": "capsulate-example-skill-krita-painting",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "A skill learned once and replayed in minutes: import the krita-painting skill, rehearse it, and paint a new picture from its procedures.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capsulate/sdk": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { readFileSync, writeFileSync } from "node:fs";
-import type { RunActionsResult, RunObserve, RunStep } from "@capsulate/sdk";
+import type { RunActionsResult, RunFrame, RunObserve, RunStep } from "@capsulate/sdk";
 import { withClient } from "./_shared.js";
 import { result, success, exitWith } from "../output.js";
 
@@ -36,6 +36,7 @@ function human(r: RunActionsResult): string {
     lines.push(`  ${String(s.i + 1).padStart(2)}. ${s.do.padEnd(18)} ${s.ok ? "ok    " : "FAILED"} ${String(s.ms).padStart(5)} ms${exp}${s.ok ? "" : `  ${s.error ?? ""}`}`);
   }
   if (r.observation) lines.push(`  look: ${r.observation.do} ${r.observation.ok ? "ok" : `FAILED ${r.observation.error ?? ""}`}`);
+  if (r.variables && Object.keys(r.variables).length) lines.push(`  saved: ${JSON.stringify(r.variables)}`);
   return lines.join("\n");
 }
 
@@ -45,11 +46,25 @@ export function registerActions(program: Command): void {
     .description("Run several computer-use steps in one call (JSON list, @file or - for stdin); stops at the first failure")
     .option("--observe <what>", `a look at the end: ${OBSERVE.join(", ")}`)
     .option("-o, --out <file>", "save the observe screenshot to this file")
+    .option("--skill <name>", "the skill `use` steps call when they name none")
+    .option("--frames <json>", 'coordinate frames the steps may name: {"canvas":{"origin":[x,y],"scale":s}} (JSON or @file)')
     .action((id: string, stepsArg: string, _o, command: Command) =>
       withClient(command, async (client) => {
-        const local = command.opts<{ observe?: string; out?: string }>();
+        const local = command.opts<{ observe?: string; out?: string; skill?: string; frames?: string }>();
         if (local.observe && !OBSERVE.includes(local.observe)) throw new Error(`--observe must be one of ${OBSERVE.join(", ")}`);
-        const r = await client.capsules.runActions(id, readSteps(stepsArg), { observe: local.observe as RunObserve | undefined });
+        let frames: Record<string, RunFrame> | undefined;
+        if (local.frames) {
+          try {
+            frames = JSON.parse(local.frames.startsWith("@") ? readFileSync(local.frames.slice(1), "utf8") : local.frames);
+          } catch {
+            throw new Error('--frames must be JSON: {"name": {"origin": [x, y], "scale": s, "clamp": [[x0, y0], [x1, y1]]}}');
+          }
+        }
+        const r = await client.capsules.runActions(id, readSteps(stepsArg), {
+          observe: local.observe as RunObserve | undefined,
+          skill: local.skill,
+          frames,
+        });
         if (local.out && r.observation?.ok) {
           const o = r.observation.result as { imageB64?: string; result?: { base64?: string } } | undefined;
           const b64 = o?.imageB64 ?? o?.result?.base64;
